@@ -25,7 +25,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.8
       '@types/chrome':
-        specifier: latest
+        specifier: ^0.1.38
         version: 0.1.38
       eslint:
         specifier: ^9.0.0
