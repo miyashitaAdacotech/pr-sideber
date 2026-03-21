@@ -1,0 +1,48 @@
+import { vi } from "vitest";
+
+type ChromeMock = {
+	identity: {
+		launchWebAuthFlow: ReturnType<typeof vi.fn>;
+		getRedirectURL: ReturnType<typeof vi.fn>;
+	};
+	storage: {
+		local: {
+			get: ReturnType<typeof vi.fn>;
+			set: ReturnType<typeof vi.fn>;
+			remove: ReturnType<typeof vi.fn>;
+		};
+	};
+};
+
+let chromeMock: ChromeMock;
+
+function createChromeMock(): ChromeMock {
+	return {
+		identity: {
+			launchWebAuthFlow: vi.fn(),
+			getRedirectURL: vi.fn(() => "https://mock-redirect.chromiumapp.org/"),
+		},
+		storage: {
+			local: {
+				get: vi.fn(),
+				set: vi.fn(),
+				remove: vi.fn(),
+			},
+		},
+	};
+}
+
+export function setupChromeMock(): ChromeMock {
+	chromeMock = createChromeMock();
+	// globalThis に chrome をセット (型安全性より実用性を優先)
+	(globalThis as Record<string, unknown>).chrome = chromeMock;
+	return chromeMock;
+}
+
+export function resetChromeMock(): void {
+	(globalThis as Record<string, unknown>).chrome = undefined;
+}
+
+export function getChromeMock(): ChromeMock {
+	return chromeMock;
+}
