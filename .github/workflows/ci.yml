@@ -74,6 +74,18 @@ jobs:
           node-version: 22
           cache: 'pnpm'
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Build WASM
+        run: wasm-pack build --target web --dev
+        working-directory: rust-core/crates/adapter-wasm
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
