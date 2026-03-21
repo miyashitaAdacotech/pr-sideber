@@ -16,5 +16,7 @@
 	load();
 </script>
 
-<h1>PR Sidebar</h1>
-<p>{message}</p>
+<main>
+	<h1>PR Sidebar</h1>
+	<p>{message}</p>
+</main>
