@@ -1,6 +1,5 @@
 #!/bin/bash
-# PostToolUse hook: Rust ファイル編集後に cargo fmt を実行
-# clippy は重いため hook では実行しない。/verify や quality-gate.sh で実行する。
+# PostToolUse hook: Rust ファイル編集後に fmt + clippy + machete + audit を実行
 
 set -euo pipefail
 
@@ -31,9 +30,38 @@ fi
 
 cd "$RUST_DIR"
 
-# cargo fmt のみ (高速)
+# cargo fmt
 if cargo fmt 2>&1; then
   echo "[hook] cargo fmt: formatted $FILE_PATH"
 else
-  echo "[hook] WARNING: cargo fmt failed for $FILE_PATH" >&2
+  echo "BLOCK: cargo fmt failed for $FILE_PATH" >&2
+  exit 2
+fi
+
+# cargo clippy
+if cargo clippy --all-targets -- -D warnings 2>&1; then
+  echo "[hook] cargo clippy: passed"
+else
+  echo "BLOCK: cargo clippy failed" >&2
+  exit 2
+fi
+
+# cargo machete (未使用依存検出)
+if command -v cargo-machete >/dev/null 2>&1; then
+  if cargo machete 2>&1; then
+    echo "[hook] cargo machete: passed"
+  else
+    echo "BLOCK: cargo machete detected unused dependencies" >&2
+    exit 2
+  fi
+fi
+
+# cargo audit (脆弱性スキャン)
+if command -v cargo-audit >/dev/null 2>&1; then
+  if cargo audit 2>&1; then
+    echo "[hook] cargo audit: passed"
+  else
+    echo "BLOCK: cargo audit found vulnerabilities" >&2
+    exit 2
+  fi
 fi

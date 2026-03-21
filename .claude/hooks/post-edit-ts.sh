@@ -1,6 +1,5 @@
 #!/bin/bash
-# PostToolUse hook: TypeScript/Svelte ファイル編集後に fmt + lint を実行
-# Write/Edit ツール実行後に呼ばれる
+# PostToolUse hook: TypeScript/Svelte ファイル編集後に fmt + lint + 型チェックを実行
 
 set -euo pipefail
 
@@ -35,7 +34,8 @@ if pnpm exec biome --version >/dev/null 2>&1; then
   if pnpm exec biome check --write -- "$FILE_PATH" 2>&1; then
     echo "[hook] biome: checked $FILE_PATH"
   else
-    echo "[hook] WARNING: biome failed for $FILE_PATH" >&2
+    echo "BLOCK: biome failed for $FILE_PATH" >&2
+    exit 2
   fi
 fi
 
@@ -46,8 +46,17 @@ case "$FILE_PATH" in
       if pnpm exec eslint --fix -- "$FILE_PATH" 2>&1; then
         echo "[hook] eslint: checked $FILE_PATH"
       else
-        echo "[hook] WARNING: eslint --fix failed for $FILE_PATH" >&2
+        echo "BLOCK: eslint --fix failed for $FILE_PATH" >&2
+        exit 2
       fi
     fi
     ;;
 esac
+
+# svelte-check (型チェック)
+if pnpm check 2>&1; then
+  echo "[hook] svelte-check: passed"
+else
+  echo "BLOCK: svelte-check failed" >&2
+  exit 2
+fi
