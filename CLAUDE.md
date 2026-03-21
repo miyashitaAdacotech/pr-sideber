@@ -21,7 +21,7 @@ pnpm check                     # Svelte 型チェック
 pnpm test                          # フロントエンドテスト
 cd rust-core && cargo fmt && cargo clippy --all-targets  # Rust lint
 cd rust-core && cargo test        # Rust テスト
-cd rust-core && wasm-pack build --target web             # WASM ビルド
+cd rust-core/crates/adapter-wasm && wasm-pack build --target web  # WASM ビルド
 ```
 
 ## アーキテクチャ
@@ -32,7 +32,10 @@ cd rust-core && wasm-pack build --target web             # WASM ビルド
 - `src/background/` - Service Worker
 - `src/shared/` - 共有型定義、GitHub API クライアント
 - `src/wasm/` - WASM バインディング
-- `rust-core/` - Rust ドメインロジック
+- `rust-core/` - Rust ドメインロジック (Cargo workspace)
+  - `crates/domain/` - ドメインモデル (依存なし)
+  - `crates/usecase/` - ユースケース (domain に依存)
+  - `crates/adapter-wasm/` - WASM アダプタ (usecase, domain に依存)
 
 ### 責務分担 (IMPORTANT: この境界を守ること)
 

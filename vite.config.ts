@@ -8,4 +8,12 @@ export default defineConfig({
 	build: {
 		target: "esnext",
 	},
+	optimizeDeps: {
+		exclude: ["adapter-wasm"],
+	},
+	server: {
+		fs: {
+			allow: ["src", "rust-core/crates/adapter-wasm/pkg"],
+		},
+	},
 });

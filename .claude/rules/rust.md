@@ -2,6 +2,7 @@
 paths:
   - "rust-core/**/*.rs"
   - "rust-core/Cargo.toml"
+  - "rust-core/crates/*/Cargo.toml"
 ---
 
 # Rust/WASM ルール
