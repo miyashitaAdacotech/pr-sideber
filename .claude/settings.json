@@ -1,30 +1,59 @@
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pre-command-secret-check.sh"
-          }
+    "permissions": {
+        "allow": [
+            "Bash(git add:*)",
+            "Bash(git commit:*)",
+            "Bash(git push:*)",
+            "Bash(gh repo:*)",
+            "Bash(gh issue:*)",
+            "Bash(gh label:*)",
+            "Bash(gh auth:*)",
+            "Bash(gh api:*)",
+            "Bash(gh issue:*)"
+        ],
+        "deny": [
+            "Read(.envrc)",
+            "Read(.claude/settings.local.json)",
+            "Bash(cat .envrc)",
+            "Bash(less .envrc)",
+            "Bash(head .envrc)",
+            "Bash(tail .envrc)",
+            "Bash(source .envrc)",
+            "Bash(grep .envrc)",
+            "Bash(echo $GH_TOKEN)",
+            "Bash(echo $GH_)",
+            "Bash(printenv)",
+            "Bash(env | grep)",
+            "Bash(direnv exec)",
+            "Bash(direnv export)"
         ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/post-edit-ts.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/post-edit-rust.sh"
-          }
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash .claude/hooks/pre-command-secret-check.sh"
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash .claude/hooks/post-edit-ts.sh"
+                    },
+                    {
+                        "type": "command",
+                        "command": "bash .claude/hooks/post-edit-rust.sh"
+                    }
+                ]
+            }
         ]
-      }
-    ]
-  }
+    }
 }
