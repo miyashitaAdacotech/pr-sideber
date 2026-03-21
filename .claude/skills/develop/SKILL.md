@@ -44,14 +44,17 @@ IMPORTANT: `/tdd` スキルを発火して実装する。planner の計画を引
 IMPORTANT: `/review` スキルを発火する。
 `/review` スキルが4つの専門 agent (security / architecture / quality / performance) を並列起動して統合レビューを返す。
 
-## Phase 5: 修正 (条件付き)
+## Phase 5: 修正 & 再レビュー
 
-HIGH 以上の指摘がある場合:
-1. `implementer` agent にレビュー結果を渡して修正させる
-2. 再度 `/review` スキルを発火して再レビュー
-3. **最大3回。未解決ならユーザーに報告**
+IMPORTANT: レビュー指摘に基づいてコードを修正した場合、修正の規模・重要度にかかわらず必ず再レビューを通す。「MEDIUM だから再レビュー不要」という自己判断は NG。
 
-IMPORTANT: 「この Issue のスコープ外」「別 Issue で対応」と判断した指摘は、その場で `gh issue create` して Issue 番号を記録する。口だけで「別 Issue で」と言って作らないのは NG。
+1. レビュー指摘を分類する:
+   - **修正する**: `implementer` agent にレビュー結果を渡して修正させる
+   - **スコープ外**: その場で `gh issue create` して Issue 番号を記録する。口だけで「別 Issue で」と言って作らないのは NG
+   - **対応不要** (誤検出・意図的な設計): 理由を明記してスキップ
+2. 修正があった場合、再度 `/review` スキルを発火して再レビュー
+3. **修正→再レビューのループは最大3回。未解決ならユーザーに報告**
+4. 修正が一切なかった場合のみ再レビューをスキップして Phase 6 に進む
 
 ## Phase 6: PR 作成 & 報告
 
