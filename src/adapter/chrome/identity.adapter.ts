@@ -6,6 +6,9 @@ import { AuthError, isAuthToken } from "../../shared/types/auth";
 
 const TOKEN_STORAGE_KEY = "github_auth_token";
 
+/** 有効期限の5分前にトークンを期限切れと見なし、早期リフレッシュを促す */
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+
 /** device_code の最小長。GitHub は40文字 hex を返す */
 const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
@@ -15,6 +18,8 @@ const ERROR_DESCRIPTION_MAX_LENGTH = 500;
 
 export class ChromeIdentityAdapter implements AuthPort {
 	private cachedAuthenticated: boolean | null = null;
+	private cachedExpiresAt: number | undefined = undefined;
+	private refreshPromise: Promise<AuthToken | null> | null = null;
 
 	constructor(
 		private readonly storage: StoragePort,
@@ -24,7 +29,13 @@ export class ChromeIdentityAdapter implements AuthPort {
 			if (areaName !== "local") return;
 			if (TOKEN_STORAGE_KEY in changes) {
 				const change = changes[TOKEN_STORAGE_KEY];
-				this.cachedAuthenticated = change.newValue !== undefined;
+				if (change.newValue !== undefined) {
+					this.cachedAuthenticated = true;
+					this.cachedExpiresAt = undefined; // 次回 isAuthenticated() で再取得
+				} else {
+					this.cachedAuthenticated = false;
+					this.cachedExpiresAt = undefined;
+				}
 			}
 		});
 	}
@@ -44,6 +55,7 @@ export class ChromeIdentityAdapter implements AuthPort {
 					Accept: "application/json",
 				},
 				body: body.toString(),
+				redirect: "error",
 			});
 		} catch (error: unknown) {
 			const message = error instanceof Error ? error.message : "Unknown error";
@@ -80,6 +92,7 @@ export class ChromeIdentityAdapter implements AuthPort {
 					device_code: deviceCode,
 					grant_type: "urn:ietf:params:oauth:grant-type:device_code",
 				}).toString(),
+				redirect: "error",
 			});
 		} catch (error: unknown) {
 			const message = error instanceof Error ? error.message : "Unknown error";
@@ -119,33 +132,112 @@ export class ChromeIdentityAdapter implements AuthPort {
 		const token = this.validateTokenData(data);
 		await this.storage.set(TOKEN_STORAGE_KEY, token);
 		this.cachedAuthenticated = true;
+		this.cachedExpiresAt = token.expiresAt;
 		return { status: "success", token };
 	}
 
 	async getToken(): Promise<AuthToken | null> {
-		return this.storage.get<AuthToken>(TOKEN_STORAGE_KEY, isAuthToken);
+		const token = await this.storage.get<AuthToken>(TOKEN_STORAGE_KEY, isAuthToken);
+		if (token === null) return null;
+
+		if (this.isTokenExpiredWithBuffer(token.expiresAt)) {
+			if (!this.refreshPromise) {
+				this.refreshPromise = this.performRefresh(token).finally(() => {
+					this.refreshPromise = null;
+				});
+			}
+			const refreshed = await this.refreshPromise;
+			if (refreshed !== null) return refreshed;
+			await this.clearToken();
+			return null;
+		}
+
+		return token;
 	}
 
 	async clearToken(): Promise<void> {
 		await this.storage.remove(TOKEN_STORAGE_KEY);
 		this.cachedAuthenticated = false;
+		this.cachedExpiresAt = undefined;
 	}
 
 	async isAuthenticated(): Promise<boolean> {
+		// バッファ圏内に入ったキャッシュ済みトークンは期限切れと見なす
+		if (this.cachedAuthenticated === true && this.cachedExpiresAt !== undefined) {
+			if (Date.now() >= this.cachedExpiresAt - TOKEN_EXPIRY_BUFFER_MS) {
+				return false; // cachedAuthenticated は変更しない — 次回呼び出しでも再判定
+			}
+			return true;
+		}
+
 		if (this.cachedAuthenticated !== null) {
 			return this.cachedAuthenticated;
 		}
-		const token = await this.getToken();
+
+		const token = await this.storage.get<AuthToken>(TOKEN_STORAGE_KEY, isAuthToken);
 		if (token === null) {
 			this.cachedAuthenticated = false;
 			return false;
 		}
-		if (token.expiresAt !== undefined && Date.now() >= token.expiresAt) {
+		if (this.isTokenExpiredWithBuffer(token.expiresAt)) {
 			this.cachedAuthenticated = false;
 			return false;
 		}
 		this.cachedAuthenticated = true;
+		this.cachedExpiresAt = token.expiresAt;
 		return true;
+	}
+
+	async refreshAccessToken(): Promise<AuthToken | null> {
+		const token = await this.storage.get<AuthToken>(TOKEN_STORAGE_KEY, isAuthToken);
+		if (!token?.refreshToken) return null;
+		if (!this.refreshPromise) {
+			this.refreshPromise = this.performRefresh(token).finally(() => {
+				this.refreshPromise = null;
+			});
+		}
+		return this.refreshPromise;
+	}
+
+	private async performRefresh(token: AuthToken): Promise<AuthToken | null> {
+		if (!token.refreshToken) return null;
+		try {
+			const body = new URLSearchParams({
+				grant_type: "refresh_token",
+				client_id: this.config.clientId,
+				refresh_token: token.refreshToken,
+			});
+
+			const response = await fetch(this.config.tokenEndpoint, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+					Accept: "application/json",
+				},
+				body: body.toString(),
+				redirect: "error",
+			});
+
+			// HTTP エラー時は原因によらず null を返す。
+			// 呼び出し元の getToken() が clearToken() でフォールバックし再認証を促す。
+			// 将来的にリトライ戦略が必要な場合は、ここで 429/500 を区別する。
+			if (!response.ok) return null;
+
+			const data = (await response.json()) as Record<string, unknown>;
+			const newToken = this.validateTokenData(data);
+			await this.storage.set(TOKEN_STORAGE_KEY, newToken);
+			this.cachedAuthenticated = true;
+			this.cachedExpiresAt = newToken.expiresAt;
+			return newToken;
+		} catch {
+			return null;
+		}
+	}
+
+	/** expiresAt がありバッファ圏内なら期限切れと判定する */
+	private isTokenExpiredWithBuffer(expiresAt: number | undefined): boolean {
+		if (expiresAt === undefined) return false;
+		return Date.now() >= expiresAt - TOKEN_EXPIRY_BUFFER_MS;
 	}
 
 	private validateDeviceCodeData(data: Record<string, unknown>): DeviceCodeResponse {

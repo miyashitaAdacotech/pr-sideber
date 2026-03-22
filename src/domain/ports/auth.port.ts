@@ -7,4 +7,6 @@ export interface AuthPort {
 	requestDeviceCode(): Promise<DeviceCodeResponse>;
 	/** 1回分のトークン取得試行。Service Worker 30秒制限のためループせず即座に結果を返す */
 	pollForToken(deviceCode: string): Promise<PollResult>;
+	/** refresh_token を使ってアクセストークンを更新する。refresh_token がない場合は null を返す */
+	refreshAccessToken(): Promise<AuthToken | null>;
 }

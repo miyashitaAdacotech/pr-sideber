@@ -22,7 +22,7 @@ export function initializeApp(): AppServices {
 	const githubApi = new GitHubGraphQLClient(async () => {
 		const token = await auth.getToken();
 		if (!token) {
-			throw new GitHubApiError("unauthorized", "Not authenticated");
+			throw new GitHubApiError("unauthorized", "Not authenticated. Token may have expired.");
 		}
 		return token.accessToken;
 	});

@@ -14,6 +14,7 @@ function createMockAuth(): {
 		isAuthenticated: vi.fn(),
 		requestDeviceCode: vi.fn(),
 		pollForToken: vi.fn(),
+		refreshAccessToken: vi.fn(),
 	};
 }
 
