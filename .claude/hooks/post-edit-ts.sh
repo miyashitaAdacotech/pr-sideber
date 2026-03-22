@@ -14,7 +14,7 @@ fi
 
 # Biome/ESLint 対象ファイル以外はスキップ
 case "$FILE_PATH" in
-  *.ts|*.svelte|*.json) ;;
+  *.ts|*.svelte|*.json|*.js|*.cjs|*.mjs) ;;
   *) exit 0 ;;
 esac
 
@@ -45,9 +45,9 @@ case "$FILE_PATH" in
     ;;
 esac
 
-# JSON ファイルは Biome のみで完了
+# JSON / JS ファイルは Biome のみで完了
 case "$FILE_PATH" in
-  *.json) exit 0 ;;
+  *.json|*.js|*.cjs|*.mjs) exit 0 ;;
 esac
 
 # ESLint (Svelte only)
