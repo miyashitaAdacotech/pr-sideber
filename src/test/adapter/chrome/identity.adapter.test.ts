@@ -1,33 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChromeIdentityAdapter } from "../../../adapter/chrome/identity.adapter";
 import type { StoragePort } from "../../../domain/ports/storage.port";
-import type { AuthToken } from "../../../shared/types/auth";
-import { AuthError } from "../../../shared/types/auth";
+import type { AuthToken, DeviceCodeResponse, OAuthConfig } from "../../../shared/types/auth";
+import { AuthError, isAuthToken } from "../../../shared/types/auth";
 import { getChromeMock, resetChromeMock, setupChromeMock } from "../../mocks/chrome.mock";
-
-/**
- * Device Flow で導入される型。GREEN フェーズで src/shared/types/auth.ts に定義予定。
- * RED フェーズではテスト内にローカル定義して期待する構造を明示する。
- * GREEN フェーズで実型に差し替える際に他テストファイルの重複定義も整理する。
- */
-type DeviceCodeResponse = {
-	readonly deviceCode: string;
-	readonly userCode: string;
-	readonly verificationUri: string;
-	readonly expiresIn: number;
-	readonly interval: number;
-};
-
-/**
- * Device Flow 対応後の OAuthConfig。clientSecret / authorizationEndpoint / redirectUri が消え、
- * deviceCodeEndpoint が追加される。
- */
-type DeviceFlowOAuthConfig = {
-	readonly clientId: string;
-	readonly deviceCodeEndpoint: string;
-	readonly tokenEndpoint: string;
-	readonly scopes: readonly string[];
-};
 
 function createMockStorage(): StoragePort & {
 	get: ReturnType<typeof vi.fn>;
@@ -41,7 +17,7 @@ function createMockStorage(): StoragePort & {
 	};
 }
 
-const TEST_CONFIG: DeviceFlowOAuthConfig = {
+const TEST_CONFIG: OAuthConfig = {
 	clientId: "test-client-id",
 	deviceCodeEndpoint: "https://github.com/login/device/code",
 	tokenEndpoint: "https://github.com/login/oauth/access_token",
@@ -72,12 +48,12 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 		mockStorage = createMockStorage();
 		mockStorage.set.mockResolvedValue(undefined);
 		mockStorage.remove.mockResolvedValue(undefined);
-		// Device Flow 対応後の config を渡す。現在の OAuthConfig 型とは合わないが RED フェーズでは意図的。
-		adapter = new ChromeIdentityAdapter(mockStorage, TEST_CONFIG as never);
+		adapter = new ChromeIdentityAdapter(mockStorage, TEST_CONFIG);
 		originalFetch = globalThis.fetch;
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		resetChromeMock();
 		globalThis.fetch = originalFetch;
 	});
@@ -95,12 +71,7 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 				}),
 			});
 
-			// requestDeviceCode はまだ存在しないメソッド。RED フェーズで失敗する。
-			const result: DeviceCodeResponse = await (
-				adapter as never as {
-					requestDeviceCode(): Promise<DeviceCodeResponse>;
-				}
-			).requestDeviceCode();
+			const result: DeviceCodeResponse = await adapter.requestDeviceCode();
 
 			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 			expect(fetchMock).toHaveBeenCalledWith(
@@ -121,12 +92,6 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 			expect(result).toEqual(MOCK_DEVICE_CODE_RESPONSE);
 		});
 
-		/**
-		 * GREEN フェーズで AuthErrorCode に以下を追加予定:
-		 * - "device_code_request_failed"
-		 * - "device_flow_expired"
-		 * - "device_flow_denied"
-		 */
 		it("should throw AuthError when API returns HTTP error", async () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: false,
@@ -134,13 +99,7 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 				statusText: "Internal Server Error",
 			});
 
-			const error = await (
-				adapter as never as {
-					requestDeviceCode(): Promise<DeviceCodeResponse>;
-				}
-			)
-				.requestDeviceCode()
-				.catch((e: unknown) => e);
+			const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(AuthError);
 			expect((error as AuthError).code).toBe("device_code_request_failed");
 		});
@@ -148,13 +107,7 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 		it("should throw AuthError when fetch rejects with network error", async () => {
 			globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
-			const error = await (
-				adapter as never as {
-					requestDeviceCode(): Promise<DeviceCodeResponse>;
-				}
-			)
-				.requestDeviceCode()
-				.catch((e: unknown) => e);
+			const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(AuthError);
 			expect((error as AuthError).code).toBe("device_code_request_failed");
 			expect((error as AuthError).message).toBe("Device code request failed");
@@ -166,7 +119,6 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
 				json: async () => ({
-					// eslint-disable-next-line @typescript-eslint/naming-convention
 					access_token: MOCK_TOKEN.accessToken,
 					token_type: MOCK_TOKEN.tokenType,
 					scope: MOCK_TOKEN.scope,
@@ -240,9 +192,9 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 		it("should throw AuthError when fetch rejects with network error", async () => {
 			globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Network error"));
 
-			const error = await adapter.pollForToken(
-				MOCK_DEVICE_CODE_RESPONSE.deviceCode,
-			).catch((e: unknown) => e);
+			const error = await adapter
+				.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+				.catch((e: unknown) => e);
 
 			expect(error).toBeInstanceOf(AuthError);
 			expect((error as AuthError).code).toBe("token_exchange_failed");
@@ -254,9 +206,9 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 				status: 500,
 			});
 
-			const error = await adapter.pollForToken(
-				MOCK_DEVICE_CODE_RESPONSE.deviceCode,
-			).catch((e: unknown) => e);
+			const error = await adapter
+				.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+				.catch((e: unknown) => e);
 
 			expect(error).toBeInstanceOf(AuthError);
 			expect((error as AuthError).code).toBe("token_exchange_failed");
@@ -285,6 +237,78 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 			expect(body).toContain("device_code=");
 			expect(body).toContain("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code");
 		});
+
+		it("should set expiresAt when expires_in is present in response", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: "gho_test_access_token",
+					token_type: "bearer",
+					scope: "repo",
+					expires_in: 3600,
+				}),
+			});
+
+			await adapter.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode);
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as AuthToken;
+			const expectedExpiresAt = new Date("2026-01-01T00:00:00Z").getTime() + 3600 * 1000;
+			expect(savedToken.expiresAt).toBe(expectedExpiresAt);
+
+			vi.useRealTimers();
+		});
+
+		it("should set refreshToken when refresh_token is present in response", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: "gho_test_access_token",
+					token_type: "bearer",
+					scope: "repo",
+					refresh_token: "ghr_xxx",
+				}),
+			});
+
+			await adapter.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode);
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as AuthToken;
+			expect(savedToken.refreshToken).toBe("ghr_xxx");
+		});
+
+		it("should omit expiresAt when expires_in is not present", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: MOCK_TOKEN.accessToken,
+					token_type: MOCK_TOKEN.tokenType,
+					scope: MOCK_TOKEN.scope,
+				}),
+			});
+
+			await adapter.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode);
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as Record<string, unknown>;
+			expect(savedToken.expiresAt).toBeUndefined();
+		});
+
+		it("should omit refreshToken when refresh_token is not present", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: MOCK_TOKEN.accessToken,
+					token_type: MOCK_TOKEN.tokenType,
+					scope: MOCK_TOKEN.scope,
+				}),
+			});
+
+			await adapter.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode);
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as Record<string, unknown>;
+			expect(savedToken.refreshToken).toBeUndefined();
+		});
 	});
 
 	describe("getToken", () => {
@@ -293,7 +317,7 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 
 			const result = await adapter.getToken();
 
-			expect(mockStorage.get).toHaveBeenCalledWith("github_auth_token");
+			expect(mockStorage.get).toHaveBeenCalledWith("github_auth_token", isAuthToken);
 			expect(result).toEqual(MOCK_TOKEN);
 		});
 
@@ -329,6 +353,65 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 			const result = await adapter.isAuthenticated();
 
 			expect(result).toBe(false);
+		});
+
+		it("should return true when token exists without expiresAt (non-expiring)", async () => {
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+		});
+
+		it("should return true when token exists and expiresAt is in the future", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const futureExpiresAt = new Date("2026-01-01T00:00:00Z").getTime() + 3600 * 1000;
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+				expiresAt: futureExpiresAt,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+
+			vi.useRealTimers();
+		});
+
+		it("should return false when token expiresAt equals current time (boundary)", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const exactNow = new Date("2026-01-01T00:00:00Z").getTime();
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+				expiresAt: exactNow,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(false);
+		});
+
+		it("should return false when token exists but expiresAt is in the past", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const pastExpiresAt = new Date("2026-01-01T00:00:00Z").getTime() - 1000;
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+				expiresAt: pastExpiresAt,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(false);
+
+			vi.useRealTimers();
 		});
 	});
 });

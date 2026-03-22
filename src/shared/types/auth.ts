@@ -9,7 +9,23 @@ export type AuthToken = {
 	readonly accessToken: string;
 	readonly tokenType: string;
 	readonly scope: string;
+	readonly expiresAt?: number;
+	readonly refreshToken?: string;
 };
+
+export function isAuthToken(value: unknown): value is AuthToken {
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return (
+		typeof obj.accessToken === "string" &&
+		obj.accessToken !== "" &&
+		typeof obj.tokenType === "string" &&
+		obj.tokenType !== "" &&
+		typeof obj.scope === "string"
+	);
+}
 
 export type DeviceCodeResponse = {
 	readonly deviceCode: string;
