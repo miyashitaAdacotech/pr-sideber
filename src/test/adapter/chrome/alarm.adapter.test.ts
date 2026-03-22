@@ -15,8 +15,8 @@ describe("ChromeAlarmAdapter", () => {
 	});
 
 	describe("create", () => {
-		it("should call chrome.alarms.create with correct arguments", () => {
-			adapter.create("pr-refresh", 5);
+		it("should call chrome.alarms.create with correct arguments and resolve", async () => {
+			await expect(adapter.create("pr-refresh", 5)).resolves.toBeUndefined();
 
 			const mock = getChromeMock();
 			expect(mock.alarms.create).toHaveBeenCalledWith("pr-refresh", { periodInMinutes: 5 });

@@ -84,6 +84,30 @@ describe("isCachedPrData", () => {
 		expect(isCachedPrData(invalid)).toBe(false);
 	});
 
+	it("should reject when data.myPrs.items is not an array", () => {
+		const invalid = {
+			data: {
+				myPrs: { items: "not-array", totalCount: 0 },
+				reviewRequests: { items: [], totalCount: 0 },
+				hasMore: false,
+			},
+			lastUpdatedAt: "2026-03-22T00:00:00Z",
+		};
+		expect(isCachedPrData(invalid)).toBe(false);
+	});
+
+	it("should reject when data.reviewRequests.items is not an array", () => {
+		const invalid = {
+			data: {
+				myPrs: { items: [], totalCount: 0 },
+				reviewRequests: { items: "not-array", totalCount: 0 },
+				hasMore: false,
+			},
+			lastUpdatedAt: "2026-03-22T00:00:00Z",
+		};
+		expect(isCachedPrData(invalid)).toBe(false);
+	});
+
 	it("should reject when data.hasMore is missing", () => {
 		const invalid = {
 			data: {
