@@ -47,6 +47,7 @@ describe("ChromeIdentityAdapter", () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		resetChromeMock();
 		globalThis.fetch = originalFetch;
 	});
@@ -347,6 +348,78 @@ describe("ChromeIdentityAdapter", () => {
 			const result = await adapter.authorize();
 			expect(result).toEqual(MOCK_TOKEN);
 		});
+
+		it("should set expiresAt when expires_in is present in response", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const chromeMock = getChromeMock();
+			chromeMock.identity.launchWebAuthFlow.mockImplementation(async (details: { url: string }) => {
+				const url = new URL(details.url);
+				const state = url.searchParams.get("state");
+				return `${TEST_CONFIG.redirectUri}?code=test-auth-code&state=${state}`;
+			});
+
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: "gho_test_access_token",
+					token_type: "bearer",
+					scope: "repo",
+					expires_in: 3600,
+				}),
+			});
+
+			await adapter.authorize();
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as AuthToken;
+			const expectedExpiresAt = new Date("2026-01-01T00:00:00Z").getTime() + 3600 * 1000;
+			expect(savedToken.expiresAt).toBe(expectedExpiresAt);
+
+			vi.useRealTimers();
+		});
+
+		it("should set refreshToken when refresh_token is present in response", async () => {
+			const chromeMock = getChromeMock();
+			chromeMock.identity.launchWebAuthFlow.mockImplementation(async (details: { url: string }) => {
+				const url = new URL(details.url);
+				const state = url.searchParams.get("state");
+				return `${TEST_CONFIG.redirectUri}?code=test-auth-code&state=${state}`;
+			});
+
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: "gho_test_access_token",
+					token_type: "bearer",
+					scope: "repo",
+					refresh_token: "ghr_xxx",
+				}),
+			});
+
+			await adapter.authorize();
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as AuthToken;
+			expect(savedToken.refreshToken).toBe("ghr_xxx");
+		});
+
+		it("should omit expiresAt when expires_in is not present", async () => {
+			setupSuccessfulFlow();
+
+			await adapter.authorize();
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as Record<string, unknown>;
+			expect(savedToken.expiresAt).toBeUndefined();
+		});
+
+		it("should omit refreshToken when refresh_token is not present", async () => {
+			setupSuccessfulFlow();
+
+			await adapter.authorize();
+
+			const savedToken = mockStorage.set.mock.calls[0][1] as Record<string, unknown>;
+			expect(savedToken.refreshToken).toBeUndefined();
+		});
 	});
 
 	describe("getToken", () => {
@@ -391,6 +464,66 @@ describe("ChromeIdentityAdapter", () => {
 			const result = await adapter.isAuthenticated();
 
 			expect(result).toBe(false);
+		});
+
+		it("should return true when token exists without expiresAt (non-expiring)", async () => {
+			// expiresAt がないトークンは期限なしとして true を返すべき
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+		});
+
+		it("should return true when token exists and expiresAt is in the future", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const futureExpiresAt = new Date("2026-01-01T00:00:00Z").getTime() + 3600 * 1000;
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+				expiresAt: futureExpiresAt,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+
+			vi.useRealTimers();
+		});
+
+		it("should return false when token expiresAt equals current time (boundary)", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const exactNow = new Date("2026-01-01T00:00:00Z").getTime();
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+				expiresAt: exactNow,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(false);
+		});
+
+		it("should return false when token exists but expiresAt is in the past", async () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+			const pastExpiresAt = new Date("2026-01-01T00:00:00Z").getTime() - 1000;
+			mockStorage.get.mockResolvedValue({
+				...MOCK_TOKEN,
+				expiresAt: pastExpiresAt,
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(false);
+
+			vi.useRealTimers();
 		});
 	});
 });
