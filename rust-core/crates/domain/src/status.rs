@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
-use tsify_next::Tsify;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalStatus {
     /// 少なくとも1人が承認し、変更要求がない状態。
     Approved,
@@ -14,8 +12,7 @@ pub enum ApprovalStatus {
     Pending,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CiStatus {
     /// 全チェックが成功。
     Passed,

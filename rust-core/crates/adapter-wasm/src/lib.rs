@@ -1,7 +1,8 @@
+pub mod dto;
 pub mod error;
 pub mod parser;
 
-use domain::dto::PrListDto;
+use crate::dto::{PrItemDto, PrListDto};
 use wasm_bindgen::prelude::*;
 
 /// WASM モジュール初期化。パニック時にコンソールにエラーを出力するフックを設定する。
@@ -24,6 +25,12 @@ pub fn greet(name: &str) -> JsValue {
     }
 }
 
+fn to_pr_list_dto(prs: Vec<domain::entity::PullRequest>) -> PrListDto {
+    let total_count = prs.len() as u32;
+    let items = prs.into_iter().map(PrItemDto::from).collect();
+    PrListDto { items, total_count }
+}
+
 /// GraphQL レスポンス JSON を受け取り、分類・ソート済みの PR リストを返す。
 ///
 /// # Arguments
@@ -40,8 +47,8 @@ pub fn process_pull_requests(raw_json: &str, login: &str) -> Result<JsValue, JsE
     let processed = usecase::process::process_pull_requests(login, prs);
 
     serde_wasm_bindgen::to_value(&ProcessedPrsResult {
-        my_prs: processed.my_prs,
-        review_requests: processed.review_requests,
+        my_prs: to_pr_list_dto(processed.my_prs),
+        review_requests: to_pr_list_dto(processed.review_requests),
     })
     .map_err(|e| JsError::new(&e.to_string()))
 }
@@ -99,9 +106,9 @@ mod tests {
 
         let prs = parser::parse_pull_request_nodes(json).expect("should parse");
         let processed = usecase::process::process_pull_requests("alice", prs);
-        assert_eq!(processed.my_prs.items.len(), 1);
-        assert_eq!(processed.my_prs.items[0].number, 1);
-        assert!(processed.review_requests.items.is_empty());
+        assert_eq!(processed.my_prs.len(), 1);
+        assert_eq!(processed.my_prs[0].number(), 1);
+        assert!(processed.review_requests.is_empty());
     }
 
     #[test]
@@ -115,8 +122,8 @@ mod tests {
 
         let prs = parser::parse_pull_request_nodes(json).expect("should parse");
         let processed = usecase::process::process_pull_requests("alice", prs);
-        assert!(processed.my_prs.items.is_empty());
-        assert!(processed.review_requests.items.is_empty());
+        assert!(processed.my_prs.is_empty());
+        assert!(processed.review_requests.is_empty());
     }
 
     #[test]
@@ -172,7 +179,7 @@ mod tests {
 
         let prs = parser::parse_pull_request_nodes(json).expect("should parse");
         let processed = usecase::process::process_pull_requests("alice", prs);
-        assert_eq!(processed.my_prs.items.len(), 1);
-        assert_eq!(processed.review_requests.items.len(), 1);
+        assert_eq!(processed.my_prs.len(), 1);
+        assert_eq!(processed.review_requests.len(), 1);
     }
 }
