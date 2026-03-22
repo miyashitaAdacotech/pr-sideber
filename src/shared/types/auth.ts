@@ -7,13 +7,8 @@ export type OAuthConfig = {
 	readonly scopes: readonly string[];
 };
 
-export type AuthToken = {
-	readonly accessToken: string;
-	readonly tokenType: string;
-	readonly scope: string;
-	readonly expiresAt?: number;
-	readonly refreshToken?: string;
-};
+import type { AuthToken } from "../../domain/types/auth";
+export type { AuthToken } from "../../domain/types/auth";
 
 export function isAuthToken(value: unknown): value is AuthToken {
 	if (typeof value !== "object" || value === null) {

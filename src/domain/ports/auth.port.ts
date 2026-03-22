@@ -1,4 +1,4 @@
-import type { AuthToken } from "../../shared/types/auth";
+import type { AuthToken } from "../types/auth";
 
 export interface AuthPort {
 	authorize(): Promise<AuthToken>;
