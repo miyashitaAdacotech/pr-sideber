@@ -4,15 +4,15 @@ export type MessageType = (typeof MESSAGE_TYPES)[number];
 
 /** メッセージタイプ → リクエストペイロードのマッピング */
 export type RequestMap = {
-	AUTH_LOGIN: void;
-	AUTH_LOGOUT: void;
-	AUTH_STATUS: void;
+	AUTH_LOGIN: undefined;
+	AUTH_LOGOUT: undefined;
+	AUTH_STATUS: undefined;
 };
 
 /** メッセージタイプ → レスポンスデータのマッピング */
 export type ResponseDataMap = {
-	AUTH_LOGIN: void;
-	AUTH_LOGOUT: void;
+	AUTH_LOGIN: undefined;
+	AUTH_LOGOUT: undefined;
 	AUTH_STATUS: { isAuthenticated: boolean };
 };
 
@@ -21,8 +21,8 @@ export type MessageError = {
 	readonly message: string;
 };
 
-/** リクエストメッセージ: payload が void なら省略 */
-export type RequestMessage<T extends MessageType> = RequestMap[T] extends void
+/** リクエストメッセージ: payload が undefined なら省略 */
+export type RequestMessage<T extends MessageType> = RequestMap[T] extends undefined
 	? { readonly type: T }
 	: { readonly type: T; readonly payload: RequestMap[T] };
 

@@ -19,9 +19,10 @@ describe("bootstrap", () => {
 			expect(() => initializeApp()).not.toThrow();
 		});
 
-		it("should return AppServices with auth", () => {
+		it("should return AppServices with auth and githubApi", () => {
 			const services = initializeApp();
 			expect(services).toHaveProperty("auth");
+			expect(services).toHaveProperty("githubApi");
 		});
 
 		it("should pass chrome.identity.getRedirectURL() as redirectUri", () => {

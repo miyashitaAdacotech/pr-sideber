@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuthPort } from "../../domain/ports/auth.port";
 import type { AppServices } from "../../background/bootstrap";
-import type { MessageType, ResponseMessage } from "../../shared/types/messages";
 import { createMessageHandler } from "../../background/message-handler";
-import { setupChromeMock, resetChromeMock, getChromeMock } from "../mocks/chrome.mock";
+import type { AuthPort } from "../../domain/ports/auth.port";
+import type { MessageType, ResponseMessage } from "../../shared/types/messages";
+import { getChromeMock, resetChromeMock, setupChromeMock } from "../mocks/chrome.mock";
 
 function createMockAuth(): {
 	[K in keyof AuthPort]: ReturnType<typeof vi.fn>;
@@ -153,7 +153,11 @@ describe("createMessageHandler", () => {
 	});
 
 	it("should not leak internal error details in error response", async () => {
-		mockAuth.authorize.mockRejectedValue(new Error("OAuth token exchange failed: invalid_grant at https://github.com/login/oauth/access_token"));
+		mockAuth.authorize.mockRejectedValue(
+			new Error(
+				"OAuth token exchange failed: invalid_grant at https://github.com/login/oauth/access_token",
+			),
+		);
 		const sendResponse = vi.fn();
 
 		handler({ type: "AUTH_LOGIN" }, createTrustedSender(), sendResponse);

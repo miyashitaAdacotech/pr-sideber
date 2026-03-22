@@ -5,7 +5,7 @@ import type { MessageType, RequestMap, ResponseMessage } from "./types/messages"
  * chrome.runtime.sendMessage のコールバックパターンを使用。
  */
 export async function sendMessage<T extends MessageType>(
-	...args: RequestMap[T] extends void ? [type: T] : [type: T, payload: RequestMap[T]]
+	...args: RequestMap[T] extends undefined ? [type: T] : [type: T, payload: RequestMap[T]]
 ): Promise<ResponseMessage<T>> {
 	const [type, payload] = args;
 	const message = payload !== undefined ? { type, payload } : { type };
