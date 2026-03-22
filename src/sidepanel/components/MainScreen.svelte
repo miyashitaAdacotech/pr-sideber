@@ -59,10 +59,7 @@
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
-					// キャッシュ表示済みならエラーは上書きしない
-					if (!data) {
-						error = e instanceof Error ? e.message : "Unknown error";
-					}
+					error = e instanceof Error ? e.message : "Unknown error";
 				}
 			} finally {
 				if (!cancelled) {

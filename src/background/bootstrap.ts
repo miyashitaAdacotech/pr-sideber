@@ -45,7 +45,9 @@ export function initializeApp(): AppServices {
 		},
 	});
 	autoRefresh.start().catch((err: unknown) => {
-		console.error("[bootstrap] Failed to start auto-refresh:", err);
+		if (import.meta.env.DEV) {
+			console.error("[bootstrap] Failed to start auto-refresh:", err);
+		}
 	});
 
 	let disposed = false;
@@ -53,7 +55,9 @@ export function initializeApp(): AppServices {
 		if (disposed) return;
 		disposed = true;
 		autoRefresh.stop().catch((err: unknown) => {
-			console.error("[bootstrap] Failed to stop auto-refresh:", err);
+			if (import.meta.env.DEV) {
+				console.error("[bootstrap] Failed to stop auto-refresh:", err);
+			}
 		});
 		try {
 			auth.dispose();
