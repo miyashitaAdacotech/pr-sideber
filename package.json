@@ -11,7 +11,8 @@
 		"test:watch": "vitest",
 		"lint:svelte": "eslint \"src/**/*.svelte\"",
 		"format": "biome format --write .",
-		"lint": "biome check ."
+		"lint": "biome check .",
+		"depcruise": "depcruise src --config .dependency-cruiser.cjs"
 	},
 	"dependencies": {
 		"svelte": "^5.0.0"
@@ -22,6 +23,8 @@
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@tsconfig/svelte": "^5.0.0",
 		"@types/chrome": "^0.1.38",
+		"@types/node": "^25.5.0",
+		"dependency-cruiser": "^17.3.9",
 		"eslint": "^9.0.0",
 		"eslint-plugin-svelte": "^3.0.0",
 		"jsdom": "^29.0.1",

@@ -100,5 +100,8 @@ jobs:
       - name: Type check
         run: pnpm check
 
+      - name: Architecture guard (dependency-cruiser)
+        run: pnpm depcruise
+
       - name: Run tests
         run: pnpm test

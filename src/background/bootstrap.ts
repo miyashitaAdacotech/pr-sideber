@@ -2,15 +2,11 @@ import { ChromeIdentityAdapter } from "../adapter/chrome/identity.adapter";
 import { createOAuthConfig } from "../adapter/chrome/oauth.config";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
 import { GitHubGraphQLClient } from "../adapter/github/graphql-client";
-import type { AuthPort } from "../domain/ports/auth.port";
-import type { GitHubApiPort } from "../domain/ports/github-api.port";
 import { GitHubApiError } from "../shared/types/errors";
 import { createMessageHandler } from "./message-handler";
+import type { AppServices } from "./types";
 
-export type AppServices = {
-	readonly auth: AuthPort;
-	readonly githubApi: GitHubApiPort;
-};
+export type { AppServices };
 
 /**
  * Composition Root: Adapter を Port に注入してアプリケーションを構成する
