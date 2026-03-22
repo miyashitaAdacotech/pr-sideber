@@ -1,10 +1,12 @@
 import type { DeviceCodeResponse, PollResult } from "../../domain/types/auth";
+import type { FetchPullRequestsResult } from "../../domain/types/github";
 
 export const MESSAGE_TYPES = [
 	"AUTH_LOGOUT",
 	"AUTH_STATUS",
 	"AUTH_DEVICE_CODE",
 	"AUTH_DEVICE_POLL",
+	"FETCH_PRS",
 ] as const;
 
 export type MessageType = (typeof MESSAGE_TYPES)[number];
@@ -15,6 +17,7 @@ export type RequestMap = {
 	AUTH_STATUS: undefined;
 	AUTH_DEVICE_CODE: undefined;
 	AUTH_DEVICE_POLL: { deviceCode: string };
+	FETCH_PRS: undefined;
 };
 
 /** メッセージタイプ → レスポンスデータのマッピング */
@@ -23,6 +26,7 @@ export type ResponseDataMap = {
 	AUTH_STATUS: { isAuthenticated: boolean };
 	AUTH_DEVICE_CODE: DeviceCodeResponse;
 	AUTH_DEVICE_POLL: PollResult;
+	FETCH_PRS: FetchPullRequestsResult;
 };
 
 export type MessageError = {

@@ -8,6 +8,7 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 	AUTH_STATUS: "Failed to check authentication status",
 	AUTH_DEVICE_CODE: "Device code request failed",
 	AUTH_DEVICE_POLL: "Device polling failed",
+	FETCH_PRS: "Failed to fetch pull requests",
 };
 
 /** deviceCode の長さ制限 */
@@ -74,6 +75,11 @@ async function handleMessage(
 
 				const pollResult = await services.auth.pollForToken(deviceCode);
 				sendResponse({ ok: true, data: pollResult });
+				break;
+			}
+			case "FETCH_PRS": {
+				const result = await services.githubApi.fetchPullRequests();
+				sendResponse({ ok: true, data: result });
 				break;
 			}
 			default: {

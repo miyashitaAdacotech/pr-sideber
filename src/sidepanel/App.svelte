@@ -3,9 +3,13 @@
 	import LoginScreen from "./components/LoginScreen.svelte";
 	import MainScreen from "./components/MainScreen.svelte";
 	import type { DeviceFlowState, createAuthUseCase } from "./usecase/auth.usecase.js";
+	import type { createPrUseCase } from "./usecase/pr.usecase.js";
 
-	type Props = { authUseCase: ReturnType<typeof createAuthUseCase> };
-	const { authUseCase }: Props = $props();
+	type Props = {
+		authUseCase: ReturnType<typeof createAuthUseCase>;
+		prUseCase: ReturnType<typeof createPrUseCase>;
+	};
+	const { authUseCase, prUseCase }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -69,7 +73,7 @@
 {#if loading}
 	<p>Loading...</p>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} />
+	<MainScreen onLogout={handleLogout} fetchPrs={prUseCase.fetchPrs} />
 {:else}
 	<LoginScreen
 		onStartDeviceFlow={handleStartDeviceFlow}
