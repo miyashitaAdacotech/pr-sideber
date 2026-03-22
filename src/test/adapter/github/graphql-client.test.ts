@@ -334,6 +334,7 @@ describe("GitHubGraphQLClient", () => {
 				ok: false,
 				status: 429,
 				statusText: "Too Many Requests",
+				headers: new Headers(),
 			});
 
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
@@ -343,22 +344,25 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should throw GitHubApiError with 'server_error' on HTTP 500", async () => {
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: false,
 				status: 500,
 				statusText: "Internal Server Error",
+				headers: new Headers(),
 			});
 
-			const error = await client.fetchPullRequests().catch((e: unknown) => e);
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("server_error");
 			expect((error as GitHubApiError).statusCode).toBe(500);
 		});
 
 		it("should throw GitHubApiError with 'network_error' and generic message on fetch rejection", async () => {
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
 			globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
-			const error = await client.fetchPullRequests().catch((e: unknown) => e);
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("network_error");
 			expect((error as GitHubApiError).message).toBe("Network request failed");
@@ -484,6 +488,166 @@ describe("GitHubGraphQLClient", () => {
 			const body = JSON.parse(options.body as string) as { query: string };
 			expect(body.query).toContain("pageInfo");
 			expect(body.query).toContain("hasNextPage");
+		});
+	});
+
+	describe("fetchPullRequests - リトライ・レート制限", () => {
+		let retryClient: GitHubApiPort;
+
+		beforeEach(() => {
+			retryClient = new GitHubGraphQLClient(mockGetAccessToken, { baseDelayMs: 1, maxDelayMs: 1 });
+		});
+
+		it("should retry on 5xx and succeed on 4th attempt", async () => {
+			const fetchMock = vi
+				.fn()
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 500,
+					statusText: "Internal Server Error",
+					headers: new Headers(),
+				})
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 502,
+					statusText: "Bad Gateway",
+					headers: new Headers(),
+				})
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 503,
+					statusText: "Service Unavailable",
+					headers: new Headers(),
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					json: async () => createSuccessResponse(),
+				});
+			globalThis.fetch = fetchMock;
+
+			const result = await retryClient.fetchPullRequests();
+
+			expect(result.myPrs).toEqual([]);
+			expect(result.reviewRequested).toEqual([]);
+			expect(fetchMock).toHaveBeenCalledTimes(4);
+		});
+
+		it("should throw last error after all 5xx retries exhausted", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 500,
+				statusText: "Internal Server Error",
+				headers: new Headers(),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("server_error");
+			expect(fetchMock).toHaveBeenCalledTimes(4);
+		});
+
+		it("should retry on network_error and succeed on 2nd attempt", async () => {
+			const fetchMock = vi
+				.fn()
+				.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+				.mockResolvedValueOnce({
+					ok: true,
+					json: async () => createSuccessResponse(),
+				});
+			globalThis.fetch = fetchMock;
+
+			const result = await retryClient.fetchPullRequests();
+
+			expect(result.myPrs).toEqual([]);
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it("should not retry on 401", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 401,
+				statusText: "Unauthorized",
+				headers: new Headers(),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("unauthorized");
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		});
+
+		it("should not retry on 403", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 403,
+				statusText: "Forbidden",
+				headers: new Headers(),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("forbidden");
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		});
+
+		it("should not retry on 429", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+				headers: new Headers(),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("rate_limited");
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		});
+
+		it("should include retryAfter in GitHubApiError when 429 response has rate limit headers", async () => {
+			const resetTimestamp = Math.floor(Date.now() / 1000) + 60;
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+				headers: new Headers({
+					"Retry-After": "60",
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": String(resetTimestamp),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			const apiError = error as GitHubApiError;
+			expect(apiError.code).toBe("rate_limited");
+			// GREEN フェーズで GitHubApiError に retryAfter, rateLimitRemaining を追加予定
+			expect(apiError).toHaveProperty("retryAfter", 60);
+			expect(apiError).toHaveProperty("rateLimitRemaining", 0);
+		});
+
+		it("should work normally when rate limit headers are absent", async () => {
+			const client = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse(),
+			});
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.myPrs).toEqual([]);
+			expect(result.reviewRequested).toEqual([]);
+			expect(result.hasMore).toBe(false);
 		});
 	});
 });

@@ -6,6 +6,9 @@ import type {
 	StatusState,
 } from "../../domain/types/github";
 import { GitHubApiError } from "../../shared/types/errors";
+import { extractRateLimitInfo } from "./rate-limit";
+import type { RetryConfig } from "./retry";
+import { withRetry } from "./retry";
 
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 
@@ -103,12 +106,36 @@ query {
 }
 `;
 
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+	maxRetries: 3,
+	baseDelayMs: 1000,
+	maxDelayMs: 10000,
+};
+
+function shouldRetryError(error: unknown): boolean {
+	if (error instanceof GitHubApiError) {
+		return error.code === "server_error" || error.code === "network_error";
+	}
+	return false;
+}
+
 export class GitHubGraphQLClient implements GitHubApiPort {
-	constructor(private readonly getAccessToken: () => Promise<string>) {}
+	private readonly retryConfig: RetryConfig;
+
+	constructor(
+		private readonly getAccessToken: () => Promise<string>,
+		retryConfig?: Partial<RetryConfig>,
+	) {
+		this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
+	}
 
 	async fetchPullRequests(): Promise<FetchPullRequestsResult> {
 		const token = await this.getAccessToken();
-		const response = await this.executeQuery(token);
+		const response = await withRetry(
+			() => this.executeQuery(token),
+			this.retryConfig,
+			shouldRetryError,
+		);
 		const body = await this.parseResponseBody(response);
 
 		this.checkGraphQLErrors(body);
@@ -161,11 +188,23 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		}
 
 		if (!response.ok) {
-			throw new GitHubApiError(
-				mapHttpStatusToErrorCode(response.status),
-				`GitHub API error: ${response.status} ${response.statusText}`,
-				response.status,
-			);
+			const errorCode = mapHttpStatusToErrorCode(response.status);
+			const message = `GitHub API error: ${response.status} ${response.statusText}`;
+
+			if (response.status === 429) {
+				const retryAfterStr = response.headers.get("Retry-After");
+				const retryAfter =
+					retryAfterStr !== null && Number.isFinite(Number(retryAfterStr))
+						? Number(retryAfterStr)
+						: undefined;
+				const rateLimitInfo = extractRateLimitInfo(response.headers);
+				throw new GitHubApiError(errorCode, message, response.status, undefined, {
+					retryAfter,
+					rateLimitRemaining: rateLimitInfo?.remaining,
+				});
+			}
+
+			throw new GitHubApiError(errorCode, message, response.status);
 		}
 
 		return response;
