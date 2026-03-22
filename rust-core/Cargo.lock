@@ -7,8 +7,6 @@ name = "adapter-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "domain",
- "serde",
  "serde-wasm-bindgen",
  "usecase",
  "wasm-bindgen",
