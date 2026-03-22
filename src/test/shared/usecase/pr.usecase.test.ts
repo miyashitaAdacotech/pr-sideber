@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrProcessorPort, ProcessedPrsResult } from "../../../domain/ports/pr-processor.port";
+import type { StoragePort } from "../../../domain/ports/storage.port";
 import type { SendMessage } from "../../../shared/ports/message.port";
+import { PR_CACHE_KEY } from "../../../shared/types/cache";
 import { createPrUseCase } from "../../../shared/usecase/pr.usecase";
 
 describe("pr usecase", () => {
 	let mockSendMessage: ReturnType<typeof vi.fn>;
 	let mockPrProcessor: PrProcessorPort;
+	let mockStorage: StoragePort & {
+		get: ReturnType<typeof vi.fn>;
+		set: ReturnType<typeof vi.fn>;
+		remove: ReturnType<typeof vi.fn>;
+	};
 	const mockProcessedResult: ProcessedPrsResult = {
 		myPrs: {
 			items: [
@@ -34,13 +41,21 @@ describe("pr usecase", () => {
 	};
 
 	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-03-22T12:00:00Z"));
 		mockSendMessage = vi.fn();
 		mockPrProcessor = {
 			processPullRequests: vi.fn().mockReturnValue(mockProcessedResult),
 		};
+		mockStorage = {
+			get: vi.fn().mockResolvedValue(null),
+			set: vi.fn().mockResolvedValue(undefined),
+			remove: vi.fn().mockResolvedValue(undefined),
+		};
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -50,7 +65,7 @@ describe("pr usecase", () => {
 			const response = { ok: true as const, data: rawResult };
 			mockSendMessage.mockResolvedValue(response);
 
-			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor);
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
 			const result = await useCase.fetchPrs("testuser");
 
 			expect(mockSendMessage).toHaveBeenCalledWith("FETCH_PRS");
@@ -67,7 +82,7 @@ describe("pr usecase", () => {
 			};
 			mockSendMessage.mockResolvedValue(response);
 
-			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor);
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
 
 			await expect(useCase.fetchPrs("testuser")).rejects.toThrow("Failed to fetch pull requests");
 		});
@@ -75,7 +90,7 @@ describe("pr usecase", () => {
 		it("should propagate error when sendMessage rejects", async () => {
 			mockSendMessage.mockRejectedValue(new Error("Network error"));
 
-			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor);
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
 
 			await expect(useCase.fetchPrs("testuser")).rejects.toThrow("Network error");
 		});
@@ -85,10 +100,75 @@ describe("pr usecase", () => {
 			const response = { ok: true as const, data: rawResult };
 			mockSendMessage.mockResolvedValue(response);
 
-			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor);
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
 			const result = await useCase.fetchPrs("testuser");
 
 			expect(result.hasMore).toBe(true);
+		});
+
+		it("should save cache via StoragePort.set after successful fetch", async () => {
+			const rawResult = { rawJson: '{"data":{}}', hasMore: false };
+			const response = { ok: true as const, data: rawResult };
+			mockSendMessage.mockResolvedValue(response);
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
+			await useCase.fetchPrs("testuser");
+
+			expect(mockStorage.set).toHaveBeenCalledWith(PR_CACHE_KEY, {
+				data: { ...mockProcessedResult, hasMore: false },
+				lastUpdatedAt: "2026-03-22T12:00:00.000Z",
+			});
+		});
+
+		it("should include lastUpdatedAt as ISO 8601 string in cached data", async () => {
+			const rawResult = { rawJson: '{"data":{}}', hasMore: false };
+			const response = { ok: true as const, data: rawResult };
+			mockSendMessage.mockResolvedValue(response);
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
+			await useCase.fetchPrs("testuser");
+
+			const savedData = mockStorage.set.mock.calls[0][1] as { lastUpdatedAt: string };
+			expect(savedData.lastUpdatedAt).toBe("2026-03-22T12:00:00.000Z");
+			expect(new Date(savedData.lastUpdatedAt).toISOString()).toBe(savedData.lastUpdatedAt);
+		});
+
+		it("should not update cache when fetchPrs throws an error", async () => {
+			const response = {
+				ok: false as const,
+				error: { code: "FETCH_PRS_ERROR", message: "Failed" },
+			};
+			mockSendMessage.mockResolvedValue(response);
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
+
+			await expect(useCase.fetchPrs("testuser")).rejects.toThrow("Failed");
+			expect(mockStorage.set).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("getCachedPrs", () => {
+		it("should return cached data from StoragePort.get", async () => {
+			const cachedData = {
+				data: { ...mockProcessedResult, hasMore: false },
+				lastUpdatedAt: "2026-03-22T10:00:00.000Z",
+			};
+			mockStorage.get.mockResolvedValue(cachedData);
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
+			const result = await useCase.getCachedPrs();
+
+			expect(mockStorage.get).toHaveBeenCalledWith(PR_CACHE_KEY, expect.any(Function));
+			expect(result).toEqual(cachedData);
+		});
+
+		it("should return null when no cache exists", async () => {
+			mockStorage.get.mockResolvedValue(null);
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
+			const result = await useCase.getCachedPrs();
+
+			expect(result).toBeNull();
 		});
 	});
 });
