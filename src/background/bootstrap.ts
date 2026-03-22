@@ -1,9 +1,9 @@
 import { ChromeIdentityAdapter } from "../adapter/chrome/identity.adapter";
+import { createOAuthConfig } from "../adapter/chrome/oauth.config";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
 import { GitHubGraphQLClient } from "../adapter/github/graphql-client";
 import type { AuthPort } from "../domain/ports/auth.port";
 import type { GitHubApiPort } from "../domain/ports/github-api.port";
-import { createOAuthConfig } from "../shared/config/oauth.config";
 import { GitHubApiError } from "../shared/types/errors";
 import { createMessageHandler } from "./message-handler";
 

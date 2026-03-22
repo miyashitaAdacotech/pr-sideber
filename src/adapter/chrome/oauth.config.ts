@@ -1,4 +1,9 @@
-import type { OAuthConfig } from "../types/auth";
+export type OAuthConfig = {
+	readonly clientId: string;
+	readonly deviceCodeEndpoint: string;
+	readonly tokenEndpoint: string;
+	readonly scopes: readonly string[];
+};
 
 export function createOAuthConfig(): OAuthConfig {
 	const clientId = import.meta.env.GITHUB_CLIENT_ID;

@@ -13,7 +13,7 @@ describe("createOAuthConfig", () => {
 	it("should throw when GITHUB_CLIENT_ID is empty string", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "");
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		expect(() => createConfig()).toThrow("GITHUB_CLIENT_ID is not configured");
 	});
@@ -21,7 +21,7 @@ describe("createOAuthConfig", () => {
 	it("should throw when GITHUB_CLIENT_ID is undefined (not set at all)", async () => {
 		// vi.stubEnv で設定しない = undefined
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		expect(() => createConfig()).toThrow("GITHUB_CLIENT_ID is not configured");
 	});
@@ -30,7 +30,7 @@ describe("createOAuthConfig", () => {
 		vi.stubEnv("VITE_GITHUB_CLIENT_ID", "should-not-work");
 		// GITHUB_CLIENT_ID is not set, so it should throw even if VITE_ version exists
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		expect(() => createConfig()).toThrow("GITHUB_CLIENT_ID is not configured");
 	});
@@ -38,7 +38,7 @@ describe("createOAuthConfig", () => {
 	it("should return OAuthConfig with deviceCodeEndpoint when client ID is set", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		const config = createConfig();
 
@@ -55,7 +55,7 @@ describe("createOAuthConfig", () => {
 	it("should not have clientSecret property", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		const config = createConfig();
 
@@ -65,7 +65,7 @@ describe("createOAuthConfig", () => {
 	it("should not have authorizationEndpoint property", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		const config = createConfig();
 
@@ -75,7 +75,7 @@ describe("createOAuthConfig", () => {
 	it("should not have redirectUri property", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		const config = createConfig();
 
@@ -85,7 +85,7 @@ describe("createOAuthConfig", () => {
 	it("should have deviceCodeEndpoint pointing to GitHub device code URL", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 
-		const mod = await import("../../../shared/config/oauth.config");
+		const mod = await import("../../../adapter/chrome/oauth.config");
 		const createConfig = mod.createOAuthConfig;
 		const config = createConfig();
 

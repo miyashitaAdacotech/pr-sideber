@@ -1,10 +1,3 @@
-export type OAuthConfig = {
-	readonly clientId: string;
-	readonly deviceCodeEndpoint: string;
-	readonly tokenEndpoint: string;
-	readonly scopes: readonly string[];
-};
-
 import type { AuthToken } from "../../domain/types/auth";
 
 export function isAuthToken(value: unknown): value is AuthToken {

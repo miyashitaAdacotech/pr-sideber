@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChromeIdentityAdapter } from "../../../adapter/chrome/identity.adapter";
+import type { OAuthConfig } from "../../../adapter/chrome/oauth.config";
 import type { StoragePort } from "../../../domain/ports/storage.port";
 import type { AuthToken, DeviceCodeResponse } from "../../../domain/types/auth";
-import type { OAuthConfig } from "../../../shared/types/auth";
 import { AuthError, isAuthToken } from "../../../shared/types/auth";
 import { getChromeMock, resetChromeMock, setupChromeMock } from "../../mocks/chrome.mock";
 
@@ -29,6 +29,30 @@ describe("identity.adapter の依存方向", () => {
 		expect(content).toMatch(
 			/import\s+[\s\S]*?\bPollResult\b[\s\S]*?from\s+["'].*domain\/types\/auth["']/,
 		);
+	});
+
+	it("OAuthConfig を shared/types/auth から import していないこと", () => {
+		const files = import.meta.glob("../../../adapter/chrome/identity.adapter.ts", {
+			query: "?raw",
+			eager: true,
+		}) as Record<string, { default: string }>;
+
+		expect(Object.keys(files), "adapter/chrome/identity.adapter.ts が見つかりません").toHaveLength(
+			1,
+		);
+
+		const content = Object.values(files)[0]?.default;
+		expect(content).toBeDefined();
+
+		// shared/types/auth からの import に OAuthConfig が含まれていないことを検証
+		const sharedAuthImportPattern =
+			/import\s+(?:type\s+)?{([^}]*)}\s+from\s+["'].*shared\/types\/auth["']/g;
+		const matches = [...(content?.matchAll(sharedAuthImportPattern) ?? [])];
+
+		for (const match of matches) {
+			const importedSymbols = match[1];
+			expect(importedSymbols).not.toMatch(/\bOAuthConfig\b/);
+		}
 	});
 
 	it("shared/types/auth から AuthToken, DeviceCodeResponse, PollResult を import していないこと", () => {
