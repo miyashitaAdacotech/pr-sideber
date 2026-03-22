@@ -14,9 +14,6 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
 
-/** error_description の最大長。過剰な文字列の注入を防ぐ */
-const ERROR_DESCRIPTION_MAX_LENGTH = 500;
-
 /** リフレッシュの最大試行回数 (一時的エラー時のリトライ) */
 const REFRESH_MAX_ATTEMPTS = 3;
 
@@ -155,19 +152,11 @@ export class ChromeIdentityAdapter implements AuthPort {
 					return { status: "expired" };
 				case "access_denied":
 					return { status: "denied" };
-				default: {
-					const raw =
-						typeof data.error_description === "string" && data.error_description.length > 0
-							? data.error_description
-							: data.error;
-					const description = this.sanitizeOAuthErrorMessage(
-						typeof raw === "string" ? raw : String(raw),
-					);
+				default:
 					if (import.meta.env.DEV) {
-						console.warn("[identity.adapter] OAuth error_description:", description);
+						console.warn("[identity.adapter] Unknown OAuth error:", data.error);
 					}
 					throw new AuthError("token_exchange_failed", "Token exchange failed");
-				}
 			}
 		}
 
@@ -465,17 +454,5 @@ export class ChromeIdentityAdapter implements AuthPort {
 			...(typeof data.refresh_token === "string" ? { refreshToken: data.refresh_token } : {}),
 		};
 		return token;
-	}
-
-	/** HTML タグ・制御文字を除去し、長さを制限する */
-	private sanitizeOAuthErrorMessage(raw: string): string {
-		const noHtml = raw.replace(/<[^>]*>/g, "");
-		// 制御文字のうち タブ(0x09)・LF(0x0A) のみ許容する
-		// biome-ignore lint/suspicious/noControlCharactersInRegex: 制御文字除去が目的のため意図的に使用
-		const noControl = noHtml.replace(/[\x00-\x08\x0B-\x1F]/g, "");
-		const trimmed = noControl.trim();
-		return trimmed.length > ERROR_DESCRIPTION_MAX_LENGTH
-			? trimmed.slice(0, ERROR_DESCRIPTION_MAX_LENGTH)
-			: trimmed;
 	}
 }

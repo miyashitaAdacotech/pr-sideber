@@ -1,12 +1,11 @@
-use domain::dto::{PrItemDto, PrListDto};
 use domain::entity::PullRequest;
 
 use crate::classify::classify_pull_requests;
 use crate::sort::sort_by_updated_at_desc;
 
 pub struct ProcessedPrs {
-    pub my_prs: PrListDto,
-    pub review_requests: PrListDto,
+    pub my_prs: Vec<PullRequest>,
+    pub review_requests: Vec<PullRequest>,
 }
 
 pub fn process_pull_requests(login: &str, pull_requests: Vec<PullRequest>) -> ProcessedPrs {
@@ -15,28 +14,9 @@ pub fn process_pull_requests(login: &str, pull_requests: Vec<PullRequest>) -> Pr
     sort_by_updated_at_desc(&mut classified.my_prs);
     sort_by_updated_at_desc(&mut classified.review_requests);
 
-    let my_items: Vec<PrItemDto> = classified.my_prs.iter().map(PrItemDto::from).collect();
-    let review_items: Vec<PrItemDto> = classified
-        .review_requests
-        .iter()
-        .map(PrItemDto::from)
-        .collect();
-
-    let my_prs = PrListDto {
-        // ページネーション未実装のため items.len() を使用
-        total_count: my_items.len() as u32,
-        items: my_items,
-    };
-
-    let review_requests = PrListDto {
-        // ページネーション未実装のため items.len() を使用
-        total_count: review_items.len() as u32,
-        items: review_items,
-    };
-
     ProcessedPrs {
-        my_prs,
-        review_requests,
+        my_prs: classified.my_prs,
+        review_requests: classified.review_requests,
     }
 }
 
@@ -73,24 +53,22 @@ mod tests {
         ];
         let result = process_pull_requests("alice", prs);
 
-        assert_eq!(result.my_prs.items.len(), 2);
-        assert_eq!(result.review_requests.items.len(), 1);
+        assert_eq!(result.my_prs.len(), 2);
+        assert_eq!(result.review_requests.len(), 1);
 
         // my_prs should be sorted by updated_at desc
-        assert_eq!(result.my_prs.items[0].number, 3);
-        assert_eq!(result.my_prs.items[1].number, 1);
+        assert_eq!(result.my_prs[0].number(), 3);
+        assert_eq!(result.my_prs[1].number(), 1);
 
         // review_requests
-        assert_eq!(result.review_requests.items[0].number, 2);
+        assert_eq!(result.review_requests[0].number(), 2);
     }
 
     #[test]
-    fn process_empty_list_returns_empty_dtos() {
+    fn process_empty_list_returns_empty() {
         let result = process_pull_requests("alice", vec![]);
-        assert!(result.my_prs.items.is_empty());
-        assert_eq!(result.my_prs.total_count, 0);
-        assert!(result.review_requests.items.is_empty());
-        assert_eq!(result.review_requests.total_count, 0);
+        assert!(result.my_prs.is_empty());
+        assert!(result.review_requests.is_empty());
     }
 
     #[test]
@@ -100,9 +78,8 @@ mod tests {
             make_pr("alice", 2, "2026-01-02T00:00:00Z"),
         ];
         let result = process_pull_requests("alice", prs);
-        assert_eq!(result.my_prs.items.len(), 2);
-        assert!(result.review_requests.items.is_empty());
-        assert_eq!(result.review_requests.total_count, 0);
+        assert_eq!(result.my_prs.len(), 2);
+        assert!(result.review_requests.is_empty());
     }
 
     #[test]
@@ -112,9 +89,8 @@ mod tests {
             make_pr("charlie", 2, "2026-01-02T00:00:00Z"),
         ];
         let result = process_pull_requests("alice", prs);
-        assert!(result.my_prs.items.is_empty());
-        assert_eq!(result.my_prs.total_count, 0);
-        assert_eq!(result.review_requests.items.len(), 2);
+        assert!(result.my_prs.is_empty());
+        assert_eq!(result.review_requests.len(), 2);
     }
 
     #[test]
@@ -125,40 +101,23 @@ mod tests {
             make_pr("dave", 3, "2026-01-02T00:00:00Z"),
         ];
         let result = process_pull_requests("alice", prs);
-        assert_eq!(result.review_requests.items.len(), 3);
-        assert_eq!(result.review_requests.items[0].number, 2);
-        assert_eq!(result.review_requests.items[1].number, 3);
-        assert_eq!(result.review_requests.items[2].number, 1);
-    }
-
-    /// ページネーション未実装時点では total_count == items.len()。
-    /// ページネーション導入時にはこのテストの更新が必要。
-    #[test]
-    fn total_count_matches_items_len() {
-        let prs = vec![
-            make_pr("alice", 1, "2026-01-01T00:00:00Z"),
-            make_pr("bob", 2, "2026-01-02T00:00:00Z"),
-            make_pr("alice", 3, "2026-01-03T00:00:00Z"),
-        ];
-        let result = process_pull_requests("alice", prs);
-        assert_eq!(result.my_prs.total_count, result.my_prs.items.len() as u32);
-        assert_eq!(
-            result.review_requests.total_count,
-            result.review_requests.items.len() as u32
-        );
+        assert_eq!(result.review_requests.len(), 3);
+        assert_eq!(result.review_requests[0].number(), 2);
+        assert_eq!(result.review_requests[1].number(), 3);
+        assert_eq!(result.review_requests[2].number(), 1);
     }
 
     #[test]
-    fn dto_fields_match_original_pull_request() {
+    fn pr_fields_preserved_after_processing() {
         let prs = vec![make_pr("alice", 42, "2026-01-15T12:00:00Z")];
         let result = process_pull_requests("alice", prs);
-        let dto = &result.my_prs.items[0];
-        assert_eq!(dto.number, 42);
-        assert_eq!(dto.author, "alice");
-        assert_eq!(dto.title, "PR #42");
-        assert_eq!(dto.repository, "owner/repo");
-        assert_eq!(dto.additions, 10);
-        assert_eq!(dto.deletions, 5);
-        assert_eq!(dto.updated_at, "2026-01-15T12:00:00Z");
+        let pr = &result.my_prs[0];
+        assert_eq!(pr.number(), 42);
+        assert_eq!(pr.author(), "alice");
+        assert_eq!(pr.title(), "PR #42");
+        assert_eq!(pr.repository(), "owner/repo");
+        assert_eq!(pr.additions(), 10);
+        assert_eq!(pr.deletions(), 5);
+        assert_eq!(pr.updated_at(), "2026-01-15T12:00:00Z");
     }
 }

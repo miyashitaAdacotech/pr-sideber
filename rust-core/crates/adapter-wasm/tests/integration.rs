@@ -26,19 +26,19 @@ fn valid_fixture_produces_correct_prs() {
 }
 
 #[test]
-fn valid_fixture_processes_to_classified_dtos() {
+fn valid_fixture_processes_to_classified_lists() {
     let prs = parse_pull_request_nodes(VALID_JSON).expect("valid fixture should parse");
     let processed = usecase::process::process_pull_requests("alice", prs);
 
-    assert_eq!(processed.my_prs.items.len(), 2, "alice has 2 PRs");
-    assert_eq!(processed.review_requests.items.len(), 1, "1 review request");
+    assert_eq!(processed.my_prs.len(), 2, "alice has 2 PRs");
+    assert_eq!(processed.review_requests.len(), 1, "1 review request");
 
     // my_prs sorted by updated_at desc: PR #10 (Jan 5) before PR #11 (Jan 3)
-    assert_eq!(processed.my_prs.items[0].number, 10);
-    assert_eq!(processed.my_prs.items[1].number, 11);
+    assert_eq!(processed.my_prs[0].number(), 10);
+    assert_eq!(processed.my_prs[1].number(), 11);
 
     // review_requests
-    assert_eq!(processed.review_requests.items[0].number, 5);
+    assert_eq!(processed.review_requests[0].number(), 5);
 }
 
 #[test]
@@ -47,10 +47,8 @@ fn empty_fixture_returns_empty_lists() {
     assert!(prs.is_empty());
 
     let processed = usecase::process::process_pull_requests("alice", prs);
-    assert!(processed.my_prs.items.is_empty());
-    assert!(processed.review_requests.items.is_empty());
-    assert_eq!(processed.my_prs.total_count, 0);
-    assert_eq!(processed.review_requests.total_count, 0);
+    assert!(processed.my_prs.is_empty());
+    assert!(processed.review_requests.is_empty());
 }
 
 #[test]

@@ -168,6 +168,43 @@ impl PullRequest {
     pub fn updated_at(&self) -> &str {
         &self.updated_at
     }
+
+    /// PullRequest を分解してフィールドの所有権を返す。
+    /// adapter 層で不要なアロケーションを避けるために使用する。
+    #[allow(clippy::type_complexity)]
+    pub fn into_parts(
+        self,
+    ) -> (
+        String,
+        u32,
+        String,
+        String,
+        String,
+        String,
+        bool,
+        ApprovalStatus,
+        CiStatus,
+        u32,
+        u32,
+        String,
+        String,
+    ) {
+        (
+            self.id,
+            self.number,
+            self.title,
+            self.author,
+            self.url,
+            self.repository,
+            self.is_draft,
+            self.approval_status,
+            self.ci_status,
+            self.additions,
+            self.deletions,
+            self.created_at,
+            self.updated_at,
+        )
+    }
 }
 
 #[cfg(test)]

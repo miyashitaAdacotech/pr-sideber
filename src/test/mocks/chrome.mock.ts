@@ -23,6 +23,10 @@ type ChromeMock = {
 			addListener: ReturnType<typeof vi.fn>;
 			removeListener: ReturnType<typeof vi.fn>;
 		};
+		onSuspend: {
+			addListener: ReturnType<typeof vi.fn>;
+			removeListener: ReturnType<typeof vi.fn>;
+		};
 		lastError: chrome.runtime.LastError | undefined;
 	};
 };
@@ -50,6 +54,10 @@ function createChromeMock(): ChromeMock {
 			id: "test-extension-id",
 			sendMessage: vi.fn(),
 			onMessage: {
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+			},
+			onSuspend: {
 				addListener: vi.fn(),
 				removeListener: vi.fn(),
 			},

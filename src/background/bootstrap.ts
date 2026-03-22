@@ -30,6 +30,17 @@ export function initializeApp(): AppServices {
 	const handler = createMessageHandler({ auth, githubApi });
 	chrome.runtime.onMessage.addListener(handler);
 
-	services = { auth, githubApi };
+	let disposed = false;
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		try {
+			auth.dispose();
+		} finally {
+			chrome.runtime.onMessage.removeListener(handler);
+		}
+	};
+
+	services = { auth, githubApi, dispose };
 	return services;
 }

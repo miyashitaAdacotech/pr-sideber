@@ -1,6 +1,10 @@
 import { initializeApp } from "./bootstrap";
 
-initializeApp();
+const services = initializeApp();
+
+chrome.runtime.onSuspend.addListener(() => {
+	services.dispose();
+});
 
 chrome.sidePanel
 	.setPanelBehavior({ openPanelOnActionClick: true })

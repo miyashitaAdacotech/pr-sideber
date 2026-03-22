@@ -1,55 +1,47 @@
 <script lang="ts">
 	import type { DeviceFlowState } from "../../shared/usecase/auth.usecase";
+	import type { DeviceFlowController } from "../../shared/usecase/device-flow.controller";
 
 	type Props = {
-		onStartDeviceFlow: () => Promise<{
-			userCode: string;
-			verificationUri: string;
-		}>;
-		onWaitForAuthorization: (onStateChange: (state: DeviceFlowState) => void) => Promise<void>;
+		controller: DeviceFlowController;
 	};
 
-	const { onStartDeviceFlow, onWaitForAuthorization }: Props = $props();
+	const { controller }: Props = $props();
 
-	let flowState = $state<DeviceFlowState>({ phase: "idle" });
-	let userCode = $state("");
-	let verificationUri = $state("");
-	let error = $state<string | null>(null);
+	let flowState = $state<DeviceFlowState>(controller.getState());
+	let inProgress = $state(false);
+	let lastUserCode = $state<string | null>(null);
+
+	$effect(() => {
+		return controller.subscribe((state) => {
+			flowState = state;
+			if (state.phase === "awaiting_user") {
+				lastUserCode = state.userCode;
+			}
+		});
+	});
 
 	async function handleStartFlow() {
-		error = null;
-		flowState = { phase: "idle" };
+		if (inProgress) return;
+		inProgress = true;
 
 		try {
-			const deviceCode = await onStartDeviceFlow();
-			userCode = deviceCode.userCode;
-			verificationUri = deviceCode.verificationUri;
-			flowState = {
-				phase: "awaiting_user",
-				userCode: deviceCode.userCode,
-				verificationUri: deviceCode.verificationUri,
-			};
-
-			await onWaitForAuthorization((state) => {
-				flowState = state;
-			});
-		} catch (e: unknown) {
-			error = e instanceof Error ? e.message : "Unknown error";
-			// onStateChange コールバック経由で expired/denied に遷移済みの場合はそのまま維持
-			const phase = (flowState as { phase: string }).phase;
-			if (phase !== "expired" && phase !== "denied") {
-				flowState = { phase: "error", message: error };
-			}
+			await controller.startAndWait();
+		} finally {
+			inProgress = false;
 		}
 	}
 
 	function handleCopyCode() {
-		navigator.clipboard.writeText(userCode);
+		if (lastUserCode !== null) {
+			navigator.clipboard.writeText(lastUserCode);
+		}
 	}
 
 	function openVerificationUri() {
-		if (!verificationUri.startsWith("https://")) return;
-		window.open(verificationUri, "_blank");
+		if (flowState.phase === "awaiting_user" && flowState.verificationUri.startsWith("https://")) {
+			window.open(flowState.verificationUri, "_blank");
+		}
 	}
 </script>
 
@@ -59,12 +51,12 @@
 	{#if flowState.phase === "idle" || flowState.phase === "error" || flowState.phase === "expired" || flowState.phase === "denied"}
 		<p>PR Sidebar を利用するには GitHub アカウントでログインしてください。</p>
 
-		<button class="login-btn" onclick={handleStartFlow}>
+		<button class="login-btn" disabled={inProgress} onclick={handleStartFlow}>
 			Login with GitHub
 		</button>
 
-		{#if error}
-			<p class="error">{error}</p>
+		{#if flowState.phase === "error"}
+			<p class="error">{flowState.message}</p>
 		{/if}
 	{/if}
 
@@ -73,17 +65,19 @@
 			<p class="instruction">以下のコードを GitHub に入力してください:</p>
 
 			<div class="user-code-container">
-				<code class="user-code">{userCode}</code>
+				<code class="user-code">{flowState.phase === "awaiting_user" ? flowState.userCode : lastUserCode ?? ""}</code>
 				<button class="copy-btn" onclick={handleCopyCode}>Copy</button>
 			</div>
 
-			<a
-				class="verification-link"
-				href={verificationUri}
-				onclick={(e) => { e.preventDefault(); openVerificationUri(); }}
-			>
-				{verificationUri} を開く
-			</a>
+			{#if flowState.phase === "awaiting_user"}
+				<a
+					class="verification-link"
+					href={flowState.verificationUri}
+					onclick={(e) => { e.preventDefault(); openVerificationUri(); }}
+				>
+					{flowState.verificationUri} を開く
+				</a>
+			{/if}
 
 			<p class="polling-status">認証待ち...</p>
 		</div>
