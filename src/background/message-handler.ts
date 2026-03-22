@@ -15,7 +15,7 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
 
-export function createMessageHandler(services: AppServices) {
+export function createMessageHandler(services: Pick<AppServices, "auth" | "githubApi">) {
 	return (
 		message: unknown,
 		sender: chrome.runtime.MessageSender,
@@ -36,7 +36,7 @@ export function createMessageHandler(services: AppServices) {
 }
 
 async function handleMessage(
-	services: AppServices,
+	services: Pick<AppServices, "auth" | "githubApi">,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
 ): Promise<void> {
