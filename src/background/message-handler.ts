@@ -1,6 +1,6 @@
 import type { MessageType, RequestMessage, ResponseMessage } from "../shared/types/messages";
 import { isRequestMessage } from "../shared/types/messages";
-import type { AppServices } from "./bootstrap";
+import type { AppServices } from "./types";
 
 /** メッセージタイプごとの汎用エラーメッセージ */
 const ERROR_MESSAGES: Record<MessageType, string> = {
