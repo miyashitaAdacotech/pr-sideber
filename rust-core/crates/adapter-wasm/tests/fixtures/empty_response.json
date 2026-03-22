@@ -1,10 +1,10 @@
 {
-  "data": {
-    "myPrs": {
-      "edges": []
-    },
-    "reviewRequested": {
-      "edges": []
-    }
-  }
+	"data": {
+		"myPrs": {
+			"edges": []
+		},
+		"reviewRequested": {
+			"edges": []
+		}
+	}
 }
