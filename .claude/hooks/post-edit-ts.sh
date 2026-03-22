@@ -30,15 +30,20 @@ if [ ! -d "node_modules" ]; then
   exit 0
 fi
 
-# Biome (format + lint)
-if pnpm exec biome --version >/dev/null 2>&1; then
-  if pnpm exec biome check --write -- "$FILE_PATH" 2>&1; then
-    echo "[hook] biome: checked $FILE_PATH"
-  else
-    echo "BLOCK: biome failed for $FILE_PATH" >&2
-    exit 2
-  fi
-fi
+# Biome (format + lint) — biome.json で *.svelte は ignore されているためスキップ
+case "$FILE_PATH" in
+  *.svelte) ;;
+  *)
+    if pnpm exec biome --version >/dev/null 2>&1; then
+      if pnpm exec biome check --write -- "$FILE_PATH" 2>&1; then
+        echo "[hook] biome: checked $FILE_PATH"
+      else
+        echo "BLOCK: biome failed for $FILE_PATH" >&2
+        exit 2
+      fi
+    fi
+    ;;
+esac
 
 # ESLint (Svelte only)
 case "$FILE_PATH" in
