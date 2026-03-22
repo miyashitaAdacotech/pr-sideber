@@ -4,7 +4,9 @@
 
 set -euo pipefail
 
-COMMAND="${TOOL_INPUT_COMMAND:-}"
+# stdin から JSON を読み込み、command を抽出
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 if [ -z "$COMMAND" ]; then
   exit 0
 fi

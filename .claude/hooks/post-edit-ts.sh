@@ -5,8 +5,9 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-# 変更されたファイルパスを取得
-FILE_PATH="${TOOL_INPUT_FILE_PATH:-}"
+# stdin から JSON を読み込み、file_path を抽出
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
