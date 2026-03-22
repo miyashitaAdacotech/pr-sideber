@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitHubGraphQLClient } from "../../../adapter/github/graphql-client";
+import type { DelayFn } from "../../../adapter/github/retry";
 import type { GitHubApiPort } from "../../../domain/ports/github-api.port";
 import type { ReviewDecision, StatusState } from "../../../domain/types/github";
 import { GitHubApiError } from "../../../shared/types/errors";
+
+const noDelay: DelayFn = () => Promise.resolve();
 
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 const TEST_TOKEN = "gho_test_access_token_12345";
@@ -321,6 +324,7 @@ describe("GitHubGraphQLClient", () => {
 				ok: false,
 				status: 403,
 				statusText: "Forbidden",
+				headers: new Headers(),
 			});
 
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
@@ -495,7 +499,11 @@ describe("GitHubGraphQLClient", () => {
 		let retryClient: GitHubApiPort;
 
 		beforeEach(() => {
-			retryClient = new GitHubGraphQLClient(mockGetAccessToken, { baseDelayMs: 1, maxDelayMs: 1 });
+			retryClient = new GitHubGraphQLClient(
+				mockGetAccessToken,
+				{ baseDelayMs: 1, maxDelayMs: 1 },
+				noDelay,
+			);
 		});
 
 		it("should retry on 5xx and succeed on 4th attempt", async () => {
@@ -596,7 +604,7 @@ describe("GitHubGraphQLClient", () => {
 			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
-		it("should not retry on 429", async () => {
+		it("should not retry on 429 without Retry-After", async () => {
 			const fetchMock = vi.fn().mockResolvedValue({
 				ok: false,
 				status: 429,
@@ -609,6 +617,7 @@ describe("GitHubGraphQLClient", () => {
 
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("rate_limited");
+			// Retry-After なしなのでリトライしない → fetch 1回だけ
 			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -648,6 +657,218 @@ describe("GitHubGraphQLClient", () => {
 			expect(result.myPrs).toEqual([]);
 			expect(result.reviewRequested).toEqual([]);
 			expect(result.hasMore).toBe(false);
+		});
+
+		it("should retry once on 429 with Retry-After and succeed", async () => {
+			const fetchMock = vi
+				.fn()
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 429,
+					statusText: "Too Many Requests",
+					headers: new Headers({
+						"Retry-After": "30",
+						"X-RateLimit-Remaining": "0",
+						"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 30),
+						"X-RateLimit-Limit": "5000",
+					}),
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					json: async () => createSuccessResponse(),
+				});
+			globalThis.fetch = fetchMock;
+
+			const result = await retryClient.fetchPullRequests();
+
+			expect(result.myPrs).toEqual([]);
+			// 429 + Retry-After ありなので 1回リトライ → fetch 2回
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it("should not retry on 429 when Retry-After is absent", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+				headers: new Headers({
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("rate_limited");
+			// Retry-After なし → リトライしない → fetch 1回
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		});
+
+		it("should limit rate_limited retry to 1 attempt even with multiple 429 responses", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+				headers: new Headers({
+					"Retry-After": "10",
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 10),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("rate_limited");
+			// rate limit リトライは最大1回 → 初回 + リトライ1回 = fetch 2回
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it("should treat 403 with X-RateLimit-Remaining: 0 as rate_limited", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 403,
+				statusText: "Forbidden",
+				headers: new Headers({
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			// 403 + X-RateLimit-Remaining: 0 は rate_limited として扱う
+			expect((error as GitHubApiError).code).toBe("rate_limited");
+		});
+
+		it("should treat 403 with X-RateLimit-Remaining > 0 as forbidden", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 403,
+				statusText: "Forbidden",
+				headers: new Headers({
+					"X-RateLimit-Remaining": "100",
+					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			// X-RateLimit-Remaining: 100 → 通常の forbidden
+			expect((error as GitHubApiError).code).toBe("forbidden");
+		});
+
+		it("should retry on 429 with Retry-After: 5 and return success response on 2nd attempt", async () => {
+			const prEdge = createPrEdge({ title: "Recovered PR", number: 42 });
+			const fetchMock = vi
+				.fn()
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 429,
+					statusText: "Too Many Requests",
+					headers: new Headers({
+						"Retry-After": "5",
+						"X-RateLimit-Remaining": "0",
+						"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 5),
+						"X-RateLimit-Limit": "5000",
+					}),
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					json: async () => createSuccessResponse([prEdge]),
+				});
+			globalThis.fetch = fetchMock;
+
+			const result = await retryClient.fetchPullRequests();
+
+			// 429 + Retry-After ありなのでリトライ → 2回目で成功
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(result.myPrs).toHaveLength(1);
+			expect(result.myPrs[0].title).toBe("Recovered PR");
+			expect(result.myPrs[0].number).toBe(42);
+		});
+
+		it("should treat 403 with X-RateLimit-Remaining: 0 as rate_limited error code", async () => {
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 403,
+				statusText: "Forbidden",
+				headers: new Headers({
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 120),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+			globalThis.fetch = fetchMock;
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			const apiError = error as GitHubApiError;
+			// 403 + X-RateLimit-Remaining: 0 → code は "rate_limited" であること
+			expect(apiError.code).toBe("rate_limited");
+			expect(apiError.statusCode).toBe(403);
+			expect(apiError.rateLimitRemaining).toBe(0);
+		});
+
+		it("should set retryAfter to undefined when Retry-After header is HTTP-date format", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+				headers: new Headers({
+					"Retry-After": "Thu, 01 Jan 2026 00:00:00 GMT",
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60),
+					"X-RateLimit-Limit": "5000",
+				}),
+			});
+
+			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			const apiError = error as GitHubApiError;
+			expect(apiError.code).toBe("rate_limited");
+			// HTTP-date 形式は非数値なので retryAfter は undefined
+			expect(apiError.retryAfter).toBeUndefined();
+		});
+
+		it("should retry on 403 with X-RateLimit-Remaining: 0 and Retry-After", async () => {
+			const fetchMock = vi
+				.fn()
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 403,
+					statusText: "Forbidden",
+					headers: new Headers({
+						"Retry-After": "45",
+						"X-RateLimit-Remaining": "0",
+						"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 45),
+						"X-RateLimit-Limit": "5000",
+					}),
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					json: async () => createSuccessResponse(),
+				});
+			globalThis.fetch = fetchMock;
+
+			const result = await retryClient.fetchPullRequests();
+
+			expect(result.myPrs).toEqual([]);
+			// 403 + X-RateLimit-Remaining: 0 + Retry-After → rate_limited としてリトライ
+			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
 	});
 });

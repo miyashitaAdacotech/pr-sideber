@@ -7,8 +7,8 @@ import type {
 } from "../../domain/types/github";
 import { GitHubApiError } from "../../shared/types/errors";
 import { extractRateLimitInfo } from "./rate-limit";
-import type { RetryConfig } from "./retry";
-import { withRetry } from "./retry";
+import type { DelayFn, RetryConfig } from "./retry";
+import { defaultDelay, withRetry } from "./retry";
 
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 
@@ -112,21 +112,45 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 	maxDelayMs: 10000,
 };
 
-function shouldRetryError(error: unknown): boolean {
+const MAX_RATE_LIMIT_RETRIES = 1;
+
+/** Chrome Service Worker の 5分タイムアウトを考慮した Retry-After 上限 */
+const MAX_RETRY_AFTER_MS = 120_000;
+
+type GitHubApiErrorWithRetryAfter = GitHubApiError & { readonly retryAfter: number };
+
+function hasValidRetryAfter(error: unknown): error is GitHubApiErrorWithRetryAfter {
+	return error instanceof GitHubApiError && error.retryAfter != null && error.retryAfter > 0;
+}
+
+function shouldRetryError(error: unknown, attempt: number): boolean {
 	if (error instanceof GitHubApiError) {
-		return error.code === "server_error" || error.code === "network_error";
+		if (error.code === "server_error" || error.code === "network_error") return true;
+		if (error.code === "rate_limited" && hasValidRetryAfter(error)) {
+			return attempt < MAX_RATE_LIMIT_RETRIES;
+		}
 	}
 	return false;
 }
 
+function getRateLimitDelay(error: unknown): number | undefined {
+	if (hasValidRetryAfter(error)) {
+		return Math.min(error.retryAfter * 1000, MAX_RETRY_AFTER_MS);
+	}
+	return undefined;
+}
+
 export class GitHubGraphQLClient implements GitHubApiPort {
 	private readonly retryConfig: RetryConfig;
+	private readonly delayFn: DelayFn;
 
 	constructor(
 		private readonly getAccessToken: () => Promise<string>,
 		retryConfig?: Partial<RetryConfig>,
+		delayFn?: DelayFn,
 	) {
 		this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
+		this.delayFn = delayFn ?? defaultDelay;
 	}
 
 	async fetchPullRequests(): Promise<FetchPullRequestsResult> {
@@ -135,6 +159,8 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 			() => this.executeQuery(token),
 			this.retryConfig,
 			shouldRetryError,
+			this.delayFn,
+			{ getDelayOverride: getRateLimitDelay },
 		);
 		const body = await this.parseResponseBody(response);
 
@@ -190,6 +216,21 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		if (!response.ok) {
 			const errorCode = mapHttpStatusToErrorCode(response.status);
 			const message = `GitHub API error: ${response.status} ${response.statusText}`;
+
+			if (response.status === 403) {
+				const rateLimitInfo = extractRateLimitInfo(response.headers);
+				if (rateLimitInfo && rateLimitInfo.remaining === 0) {
+					const retryAfterStr = response.headers.get("Retry-After");
+					const retryAfter =
+						retryAfterStr !== null && Number.isFinite(Number(retryAfterStr))
+							? Number(retryAfterStr)
+							: undefined;
+					throw new GitHubApiError("rate_limited", message, response.status, undefined, {
+						retryAfter,
+						rateLimitRemaining: rateLimitInfo.remaining,
+					});
+				}
+			}
 
 			if (response.status === 429) {
 				const retryAfterStr = response.headers.get("Retry-After");

@@ -65,7 +65,7 @@ describe("withRetry", () => {
 
 		expect(error).toBe(originalError);
 		expect(fn).toHaveBeenCalledTimes(1);
-		expect(shouldRetry).toHaveBeenCalledWith(originalError);
+		expect(shouldRetry).toHaveBeenCalledWith(originalError, 0);
 		expect(delay).not.toHaveBeenCalled();
 	});
 
@@ -152,5 +152,106 @@ describe("withRetry", () => {
 		expect(error).toBe(originalError);
 		expect(fn).toHaveBeenCalledTimes(1);
 		expect(delay).not.toHaveBeenCalled();
+	});
+
+	it("should use getDelayOverride value when it returns a number", async () => {
+		const fn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("rate limited"))
+			.mockResolvedValue("success");
+		const shouldRetry = vi.fn().mockReturnValue(true);
+		const delay = vi.fn().mockResolvedValue(undefined);
+		const getDelayOverride = vi.fn().mockReturnValue(5000);
+
+		const result = await withRetry(fn, defaultConfig, shouldRetry, delay, {
+			getDelayOverride,
+		});
+
+		expect(result).toBe("success");
+		expect(delay).toHaveBeenCalledTimes(1);
+		// getDelayOverride が 5000 を返したので、exponential backoff (1000) ではなく 5000 が使われる
+		expect(delay).toHaveBeenCalledWith(5000);
+		expect(getDelayOverride).toHaveBeenCalledWith(expect.any(Error));
+	});
+
+	it("should fall back to exponential backoff when getDelayOverride returns undefined", async () => {
+		const fn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("server error"))
+			.mockResolvedValue("success");
+		const shouldRetry = vi.fn().mockReturnValue(true);
+		const delay = vi.fn().mockResolvedValue(undefined);
+		const getDelayOverride = vi.fn().mockReturnValue(undefined);
+
+		const result = await withRetry(fn, defaultConfig, shouldRetry, delay, {
+			getDelayOverride,
+		});
+
+		expect(result).toBe("success");
+		expect(delay).toHaveBeenCalledTimes(1);
+		// getDelayOverride が undefined を返したので exponential backoff: 1000 * 2^0 = 1000
+		expect(delay).toHaveBeenCalledWith(1000);
+	});
+
+	it("should use getDelayOverride value of 0 when it returns 0", async () => {
+		const fn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("rate limited"))
+			.mockResolvedValue("success");
+		const shouldRetry = vi.fn().mockReturnValue(true);
+		const delay = vi.fn().mockResolvedValue(undefined);
+		const getDelayOverride = vi.fn().mockReturnValue(0);
+
+		const result = await withRetry(fn, defaultConfig, shouldRetry, delay, {
+			getDelayOverride,
+		});
+
+		expect(result).toBe("success");
+		expect(delay).toHaveBeenCalledTimes(1);
+		// getDelayOverride が 0 を返した場合、delay(0) で即座にリトライ
+		expect(delay).toHaveBeenCalledWith(0);
+		expect(getDelayOverride).toHaveBeenCalledWith(expect.any(Error));
+	});
+
+	it("should not cap getDelayOverride value at maxDelayMs", async () => {
+		const config: RetryConfig = {
+			maxRetries: 3,
+			baseDelayMs: 1000,
+			maxDelayMs: 5000,
+		};
+		const fn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("rate limited"))
+			.mockResolvedValue("success");
+		const shouldRetry = vi.fn().mockReturnValue(true);
+		const delay = vi.fn().mockResolvedValue(undefined);
+		// Retry-After が maxDelayMs (5000) を大きく超える 30000ms を返す
+		const getDelayOverride = vi.fn().mockReturnValue(30000);
+
+		const result = await withRetry(fn, config, shouldRetry, delay, {
+			getDelayOverride,
+		});
+
+		expect(result).toBe("success");
+		expect(delay).toHaveBeenCalledTimes(1);
+		// レート制限の Retry-After は API 側の指定値を尊重 → maxDelayMs でキャップしない
+		expect(delay).toHaveBeenCalledWith(30000);
+	});
+
+	it("should pass attempt number to shouldRetry", async () => {
+		const fn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("fail 1"))
+			.mockRejectedValueOnce(new Error("fail 2"))
+			.mockResolvedValue("success");
+		const shouldRetry = vi.fn().mockReturnValue(true);
+		const delay = vi.fn().mockResolvedValue(undefined);
+
+		await withRetry(fn, defaultConfig, shouldRetry, delay);
+
+		// shouldRetry は (error, attempt) で呼ばれる。attempt は 0-indexed
+		expect(shouldRetry).toHaveBeenCalledTimes(2);
+		expect(shouldRetry).toHaveBeenNthCalledWith(1, expect.any(Error), 0);
+		expect(shouldRetry).toHaveBeenNthCalledWith(2, expect.any(Error), 1);
 	});
 });

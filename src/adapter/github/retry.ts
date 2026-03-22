@@ -7,17 +7,22 @@ export type RetryConfig = {
 
 export type DelayFn = (ms: number) => Promise<void>;
 
-const defaultDelay: DelayFn = (ms: number) =>
+export const defaultDelay: DelayFn = (ms: number) =>
 	new Promise((resolve) => {
 		const jitter = ms * Math.random() * 0.5;
 		setTimeout(resolve, ms + jitter);
 	});
 
+export type WithRetryOptions = {
+	readonly getDelayOverride?: (error: unknown) => number | undefined;
+};
+
 export async function withRetry<T>(
 	fn: () => Promise<T>,
 	config: RetryConfig,
-	shouldRetry: (error: unknown) => boolean,
+	shouldRetry: (error: unknown, attempt: number) => boolean,
 	delay: DelayFn = defaultDelay,
+	options?: WithRetryOptions,
 ): Promise<T> {
 	let attempt = 0;
 
@@ -25,11 +30,15 @@ export async function withRetry<T>(
 		try {
 			return await fn();
 		} catch (error: unknown) {
-			if (!shouldRetry(error) || attempt >= config.maxRetries) {
+			if (!shouldRetry(error, attempt) || attempt >= config.maxRetries) {
 				throw error;
 			}
 
-			const delayMs = Math.min(config.baseDelayMs * 2 ** attempt, config.maxDelayMs);
+			const overrideMs = options?.getDelayOverride?.(error);
+			const delayMs =
+				overrideMs !== undefined
+					? Math.max(0, overrideMs)
+					: Math.min(config.baseDelayMs * 2 ** attempt, config.maxDelayMs);
 			await delay(delayMs);
 			attempt++;
 		}
