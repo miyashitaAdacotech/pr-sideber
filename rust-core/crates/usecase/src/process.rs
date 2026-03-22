@@ -15,11 +15,11 @@ pub fn process_pull_requests(login: &str, pull_requests: Vec<PullRequest>) -> Pr
     sort_by_updated_at_desc(&mut classified.my_prs);
     sort_by_updated_at_desc(&mut classified.review_requests);
 
-    let my_items: Vec<PrItemDto> = classified.my_prs.iter().map(to_pr_item_dto).collect();
+    let my_items: Vec<PrItemDto> = classified.my_prs.iter().map(PrItemDto::from).collect();
     let review_items: Vec<PrItemDto> = classified
         .review_requests
         .iter()
-        .map(to_pr_item_dto)
+        .map(PrItemDto::from)
         .collect();
 
     let my_prs = PrListDto {
@@ -37,24 +37,6 @@ pub fn process_pull_requests(login: &str, pull_requests: Vec<PullRequest>) -> Pr
     ProcessedPrs {
         my_prs,
         review_requests,
-    }
-}
-
-fn to_pr_item_dto(pr: &PullRequest) -> PrItemDto {
-    PrItemDto {
-        id: pr.id().to_string(),
-        number: pr.number(),
-        title: pr.title().to_string(),
-        author: pr.author().to_string(),
-        url: pr.url().to_string(),
-        repository: pr.repository().to_string(),
-        is_draft: pr.is_draft(),
-        approval_status: pr.approval_status(),
-        ci_status: pr.ci_status(),
-        additions: pr.additions(),
-        deletions: pr.deletions(),
-        created_at: pr.created_at().to_string(),
-        updated_at: pr.updated_at().to_string(),
     }
 }
 
