@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DeviceFlowState } from "../usecase/auth.usecase";
+	import type { DeviceFlowState } from "../../shared/usecase/auth.usecase";
 
 	type Props = {
 		onStartDeviceFlow: () => Promise<{

@@ -32,6 +32,14 @@ module.exports = {
 			from: { path: "^src/sidepanel/components/" },
 			to: { path: "^src/(adapter|background)/" },
 		},
+		// shared/usecase 層: adapter, background, sidepanel, wasm への依存を禁止
+		// shared/usecase は domain と shared 内の ports/types/config にのみ依存できる
+		{
+			name: "shared-usecase-boundary",
+			severity: "error",
+			from: { path: "^src/shared/usecase/" },
+			to: { path: "^src/(adapter|background|sidepanel|wasm)/" },
+		},
 		// sidepanel/usecase 層: adapter や background への直接依存を禁止
 		// ただし adapter/chrome/message.adapter は正規の通信経路として許可
 		{

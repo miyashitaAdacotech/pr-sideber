@@ -50,11 +50,21 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 		const USECASE_VIOLATION_DIR = resolve(PROJECT_ROOT, "src/sidepanel/usecase/__test_violation__");
 		const USECASE_VIOLATION_FILE = resolve(USECASE_VIOLATION_DIR, "temp_violation.ts");
 
+		const SHARED_USECASE_VIOLATION_DIR = resolve(
+			PROJECT_ROOT,
+			"src/shared/usecase/__test_violation__",
+		);
+		const SHARED_USECASE_VIOLATION_FILE = resolve(
+			SHARED_USECASE_VIOLATION_DIR,
+			"temp_violation.ts",
+		);
+
 		function cleanupViolationDirs(): void {
 			rmSync(DOMAIN_VIOLATION_DIR, { recursive: true, force: true });
 			rmSync(SHARED_VIOLATION_DIR, { recursive: true, force: true });
 			rmSync(ADAPTER_VIOLATION_DIR, { recursive: true, force: true });
 			rmSync(USECASE_VIOLATION_DIR, { recursive: true, force: true });
+			rmSync(SHARED_USECASE_VIOLATION_DIR, { recursive: true, force: true });
 		}
 
 		let depcruiseAvailable = false;
@@ -100,6 +110,14 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 			writeFileSync(
 				USECASE_VIOLATION_FILE,
 				'import { GitHubGraphQLClient } from "../../../adapter/github/graphql-client";\n',
+				"utf-8",
+			);
+
+			// shared/usecase → sidepanel への不正な import
+			mkdirSync(SHARED_USECASE_VIOLATION_DIR, { recursive: true });
+			writeFileSync(
+				SHARED_USECASE_VIOLATION_FILE,
+				'import { something } from "../../../sidepanel/App.svelte";\n',
 				"utf-8",
 			);
 		});
@@ -152,6 +170,10 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 				"sidepanel/usecase→adapter/github",
 			);
 		});
+
+		it("shared/usecase → sidepanel の違反を検出すること", () => {
+			assertViolationDetected("src/shared/usecase/__test_violation__", "shared/usecase→sidepanel");
+		});
 	});
 
 	describe("ルール定義", () => {
@@ -186,6 +208,10 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 
 		it("sidepanel/usecase 層の依存制限ルールが定義されていること", () => {
 			expect(getRuleNames()).toContain("sidepanel-usecase-boundary");
+		});
+
+		it("shared/usecase 層の依存制限ルールが定義されていること", () => {
+			expect(getRuleNames()).toContain("shared-usecase-boundary");
 		});
 	});
 });

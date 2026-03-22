@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeviceCodeResponse, PollResult } from "../../../domain/types/auth";
 import type { SendMessage } from "../../../shared/ports/message.port";
 import type { ResponseMessage } from "../../../shared/types/messages";
-import { createAuthUseCase } from "../../../sidepanel/usecase/auth.usecase";
+import { createAuthUseCase } from "../../../shared/usecase/auth.usecase";
 
 describe("auth usecase", () => {
 	let mockSendMessage: ReturnType<typeof vi.fn>;
@@ -396,13 +396,13 @@ describe("auth usecase", () => {
 
 describe("auth.usecase の依存方向", () => {
 	it("DeviceCodeResponse, PollResult を domain/types/auth から直接 import していること", () => {
-		const files = import.meta.glob("../../../sidepanel/usecase/auth.usecase.ts", {
+		const files = import.meta.glob("../../../shared/usecase/auth.usecase.ts", {
 			query: "?raw",
 			eager: true,
 		}) as Record<string, { default: string }>;
 
 		const matchedPaths = Object.keys(files);
-		expect(matchedPaths, "sidepanel/usecase/auth.usecase.ts が見つかりません").toHaveLength(1);
+		expect(matchedPaths, "shared/usecase/auth.usecase.ts が見つかりません").toHaveLength(1);
 
 		const content = Object.values(files)[0]?.default;
 		expect(content).toBeDefined();
@@ -416,14 +416,12 @@ describe("auth.usecase の依存方向", () => {
 	});
 
 	it("shared/types/auth から DeviceCodeResponse, PollResult を import していないこと", () => {
-		const files = import.meta.glob("../../../sidepanel/usecase/auth.usecase.ts", {
+		const files = import.meta.glob("../../../shared/usecase/auth.usecase.ts", {
 			query: "?raw",
 			eager: true,
 		}) as Record<string, { default: string }>;
 
-		expect(Object.keys(files), "sidepanel/usecase/auth.usecase.ts が見つかりません").toHaveLength(
-			1,
-		);
+		expect(Object.keys(files), "shared/usecase/auth.usecase.ts が見つかりません").toHaveLength(1);
 
 		const content = Object.values(files)[0]?.default;
 		expect(content).toBeDefined();

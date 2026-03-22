@@ -2,7 +2,7 @@
 	import { untrack } from "svelte";
 	import LoginScreen from "./components/LoginScreen.svelte";
 	import MainScreen from "./components/MainScreen.svelte";
-	import type { DeviceFlowState, createAuthUseCase } from "./usecase/auth.usecase.js";
+	import type { DeviceFlowState, createAuthUseCase } from "../shared/usecase/auth.usecase.js";
 
 	type Props = { authUseCase: ReturnType<typeof createAuthUseCase> };
 	const { authUseCase }: Props = $props();
