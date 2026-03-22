@@ -12,12 +12,7 @@ export class GitHubApiError extends Error {
 	readonly statusCode?: number;
 	readonly details?: string;
 
-	constructor(
-		code: GitHubApiErrorCode,
-		message: string,
-		statusCode?: number,
-		details?: string,
-	) {
+	constructor(code: GitHubApiErrorCode, message: string, statusCode?: number, details?: string) {
 		super(message);
 		this.name = "GitHubApiError";
 		this.code = code;

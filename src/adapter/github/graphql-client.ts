@@ -129,10 +129,16 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 
 		return {
 			myPrs: myPrsEdges
-				.filter((edge): edge is SearchEdge & { node: NonNullable<SearchEdge["node"]> } => edge.node !== null)
+				.filter(
+					(edge): edge is SearchEdge & { node: NonNullable<SearchEdge["node"]> } =>
+						edge.node !== null,
+				)
 				.map(mapEdgeToPullRequest),
 			reviewRequested: reviewRequestedEdges
-				.filter((edge): edge is SearchEdge & { node: NonNullable<SearchEdge["node"]> } => edge.node !== null)
+				.filter(
+					(edge): edge is SearchEdge & { node: NonNullable<SearchEdge["node"]> } =>
+						edge.node !== null,
+				)
 				.map(mapEdgeToPullRequest),
 			hasMore,
 		};

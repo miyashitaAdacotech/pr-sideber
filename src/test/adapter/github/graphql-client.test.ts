@@ -60,17 +60,19 @@ function createSuccessResponse(
 	};
 }
 
-function createPrEdge(overrides: {
-	title?: string;
-	url?: string;
-	number?: number;
-	isDraft?: boolean;
-	reviewDecision?: ReviewDecision;
-	statusState?: StatusState | null;
-	nameWithOwner?: string;
-	createdAt?: string;
-	updatedAt?: string;
-} = {}): TestEdge {
+function createPrEdge(
+	overrides: {
+		title?: string;
+		url?: string;
+		number?: number;
+		isDraft?: boolean;
+		reviewDecision?: ReviewDecision;
+		statusState?: StatusState | null;
+		nameWithOwner?: string;
+		createdAt?: string;
+		updatedAt?: string;
+	} = {},
+): TestEdge {
 	return {
 		node: {
 			title: overrides.title ?? "Test PR",
@@ -86,9 +88,7 @@ function createPrEdge(overrides: {
 								{
 									commit: {
 										statusCheckRollup:
-											overrides.statusState === null
-												? null
-												: { state: overrides.statusState },
+											overrides.statusState === null ? null : { state: overrides.statusState },
 									},
 								},
 							],
