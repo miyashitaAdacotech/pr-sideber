@@ -2,27 +2,60 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitHubGraphQLClient } from "../../../adapter/github/graphql-client";
 import type { GitHubApiPort } from "../../../domain/ports/github-api.port";
 import { GitHubApiError } from "../../../shared/types/errors";
-import type { GraphQLResponse } from "../../../shared/types/github";
+import type { ReviewDecision, StatusState } from "../../../shared/types/github";
 
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 const TEST_TOKEN = "gho_test_access_token_12345";
 
+type TestEdge = {
+	node: {
+		title: string;
+		url: string;
+		number: number;
+		isDraft: boolean;
+		reviewDecision: ReviewDecision;
+		commits: {
+			nodes: Array<{
+				commit: {
+					statusCheckRollup: { state: StatusState } | null;
+				};
+			}>;
+		};
+		repository: { nameWithOwner: string };
+		createdAt: string;
+		updatedAt: string;
+	} | null;
+};
+
+type TestResponse = {
+	data?: {
+		myPrs: {
+			edges: TestEdge[];
+			pageInfo: { hasNextPage: boolean };
+		} | null;
+		reviewRequested: {
+			edges: TestEdge[];
+			pageInfo: { hasNextPage: boolean };
+		} | null;
+	};
+	errors?: Array<{ message: string }>;
+};
+
 function createSuccessResponse(
-	myPrsNodes: GraphQLResponse["data"] extends infer D
-		? D extends { myPrs: { edges: readonly (infer E)[] } }
-			? E[]
-			: never
-		: never = [],
-	reviewRequestedNodes: GraphQLResponse["data"] extends infer D
-		? D extends { reviewRequested: { edges: readonly (infer E)[] } }
-			? E[]
-			: never
-		: never = [],
-): GraphQLResponse {
+	myPrsNodes: TestEdge[] = [],
+	reviewRequestedNodes: TestEdge[] = [],
+	options: { myPrsHasNextPage?: boolean; reviewRequestedHasNextPage?: boolean } = {},
+): TestResponse {
 	return {
 		data: {
-			myPrs: { edges: myPrsNodes },
-			reviewRequested: { edges: reviewRequestedNodes },
+			myPrs: {
+				edges: myPrsNodes,
+				pageInfo: { hasNextPage: options.myPrsHasNextPage ?? false },
+			},
+			reviewRequested: {
+				edges: reviewRequestedNodes,
+				pageInfo: { hasNextPage: options.reviewRequestedHasNextPage ?? false },
+			},
 		},
 	};
 }
@@ -32,12 +65,12 @@ function createPrEdge(overrides: {
 	url?: string;
 	number?: number;
 	isDraft?: boolean;
-	reviewDecision?: string | null;
-	statusState?: string | null;
+	reviewDecision?: ReviewDecision;
+	statusState?: StatusState | null;
 	nameWithOwner?: string;
 	createdAt?: string;
 	updatedAt?: string;
-} = {}) {
+} = {}): TestEdge {
 	return {
 		node: {
 			title: overrides.title ?? "Test PR",
@@ -174,6 +207,7 @@ describe("GitHubGraphQLClient", () => {
 
 			expect(result.myPrs).toEqual([]);
 			expect(result.reviewRequested).toEqual([]);
+			expect(result.hasMore).toBe(false);
 		});
 
 		it("should handle PR with no CI status (statusCheckRollup is null)", async () => {
@@ -190,7 +224,6 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should handle PR with no commits nodes (empty array)", async () => {
-			// statusState undefined means no commits nodes
 			const edge = createPrEdge();
 
 			globalThis.fetch = vi.fn().mockResolvedValue({
@@ -201,6 +234,71 @@ describe("GitHubGraphQLClient", () => {
 			const result = await client.fetchPullRequests();
 
 			expect(result.myPrs[0].commitStatusState).toBeNull();
+		});
+
+		it("should filter out edges with null node", async () => {
+			const validEdge = createPrEdge({ title: "Valid PR" });
+			const nullNodeEdge: TestEdge = { node: null };
+
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse([validEdge, nullNodeEdge]),
+			});
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.myPrs).toHaveLength(1);
+			expect(result.myPrs[0].title).toBe("Valid PR");
+		});
+
+		it("should treat null myPrs/reviewRequested as empty arrays", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: {
+						myPrs: null,
+						reviewRequested: null,
+					},
+				}),
+			});
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.myPrs).toEqual([]);
+			expect(result.reviewRequested).toEqual([]);
+		});
+
+		it("should set hasMore to true when myPrs has next page", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse([], [], { myPrsHasNextPage: true }),
+			});
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.hasMore).toBe(true);
+		});
+
+		it("should set hasMore to true when reviewRequested has next page", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse([], [], { reviewRequestedHasNextPage: true }),
+			});
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.hasMore).toBe(true);
+		});
+
+		it("should set hasMore to false when neither has next page", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse(),
+			});
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.hasMore).toBe(false);
 		});
 	});
 
@@ -231,6 +329,19 @@ describe("GitHubGraphQLClient", () => {
 			expect((error as GitHubApiError).statusCode).toBe(403);
 		});
 
+		it("should throw GitHubApiError with 'rate_limited' on HTTP 429", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+			});
+
+			const error = await client.fetchPullRequests().catch((e: unknown) => e);
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("rate_limited");
+			expect((error as GitHubApiError).statusCode).toBe(429);
+		});
+
 		it("should throw GitHubApiError with 'server_error' on HTTP 500", async () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: false,
@@ -253,7 +364,7 @@ describe("GitHubGraphQLClient", () => {
 			expect((error as GitHubApiError).message).toContain("Failed to fetch");
 		});
 
-		it("should throw GitHubApiError with 'graphql_error' when response has errors field", async () => {
+		it("should throw GitHubApiError with 'graphql_error' and generic message when response has errors field", async () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
 				json: async () => ({
@@ -264,7 +375,9 @@ describe("GitHubGraphQLClient", () => {
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("graphql_error");
-			expect((error as GitHubApiError).message).toContain("Field 'foo' doesn't exist");
+			// message は汎用文言で、詳細は details に格納
+			expect((error as GitHubApiError).message).toBe("GitHub API returned GraphQL errors");
+			expect((error as GitHubApiError).details).toContain("Field 'foo' doesn't exist");
 		});
 
 		it("should throw GitHubApiError with 'unknown' on invalid JSON response", async () => {
@@ -278,6 +391,33 @@ describe("GitHubGraphQLClient", () => {
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("unknown");
+		});
+
+		it("should propagate error when getAccessToken rejects", async () => {
+			mockGetAccessToken.mockRejectedValue(new Error("Not authenticated"));
+			client = new GitHubGraphQLClient(mockGetAccessToken);
+
+			const error = await client.fetchPullRequests().catch((e: unknown) => e);
+			expect(error).toBeInstanceOf(Error);
+			expect((error as Error).message).toBe("Not authenticated");
+		});
+
+		it("should throw GraphQL error when response has both data and errors", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: {
+						myPrs: { edges: [], pageInfo: { hasNextPage: false } },
+						reviewRequested: { edges: [], pageInfo: { hasNextPage: false } },
+					},
+					errors: [{ message: "Partial error occurred" }],
+				}),
+			});
+
+			const error = await client.fetchPullRequests().catch((e: unknown) => e);
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("graphql_error");
+			expect((error as GitHubApiError).details).toContain("Partial error occurred");
 		});
 	});
 
@@ -311,6 +451,36 @@ describe("GitHubGraphQLClient", () => {
 					"Content-Type": "application/json",
 				}),
 			);
+		});
+
+		it("should use GraphQL fragment in query", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse(),
+			});
+
+			await client.fetchPullRequests();
+
+			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+			const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+			const body = JSON.parse(options.body as string) as { query: string };
+			expect(body.query).toContain("fragment PrFields on PullRequest");
+			expect(body.query).toContain("...PrFields");
+		});
+
+		it("should request pageInfo in query", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => createSuccessResponse(),
+			});
+
+			await client.fetchPullRequests();
+
+			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+			const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+			const body = JSON.parse(options.body as string) as { query: string };
+			expect(body.query).toContain("pageInfo");
+			expect(body.query).toContain("hasNextPage");
 		});
 	});
 });

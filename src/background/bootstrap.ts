@@ -4,6 +4,7 @@ import { GitHubGraphQLClient } from "../adapter/github/graphql-client";
 import type { AuthPort } from "../domain/ports/auth.port";
 import type { GitHubApiPort } from "../domain/ports/github-api.port";
 import { createOAuthConfig } from "../shared/config/oauth.config";
+import { GitHubApiError } from "../shared/types/errors";
 
 type AppServices = {
 	readonly auth: AuthPort;
@@ -20,7 +21,7 @@ export function initializeApp(): AppServices {
 	const githubApi = new GitHubGraphQLClient(async () => {
 		const token = await auth.getToken();
 		if (!token) {
-			throw new Error("Not authenticated");
+			throw new GitHubApiError("unauthorized", "Not authenticated");
 		}
 		return token.accessToken;
 	});
