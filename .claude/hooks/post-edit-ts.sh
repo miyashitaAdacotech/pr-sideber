@@ -1,5 +1,5 @@
 #!/bin/bash
-# PostToolUse hook: TypeScript/Svelte ファイル編集後に fmt + lint + 型チェックを実行
+# PostToolUse hook: TypeScript/Svelte/JSON ファイル編集後に fmt + lint + 型チェックを実行
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# TS/Svelte/JSON ファイル以外はスキップ
+# Biome/ESLint 対象ファイル以外はスキップ
 case "$FILE_PATH" in
   *.ts|*.svelte|*.json) ;;
   *) exit 0 ;;
@@ -43,6 +43,11 @@ case "$FILE_PATH" in
       fi
     fi
     ;;
+esac
+
+# JSON ファイルは Biome のみで完了
+case "$FILE_PATH" in
+  *.json) exit 0 ;;
 esac
 
 # ESLint (Svelte only)
