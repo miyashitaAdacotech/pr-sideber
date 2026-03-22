@@ -26,7 +26,9 @@ describe("messages", () => {
 		});
 
 		it("should return true for valid AUTH_DEVICE_POLL message", () => {
-			expect(isRequestMessage({ type: "AUTH_DEVICE_POLL", payload: { deviceCode: "abc12345" } })).toBe(true);
+			expect(
+				isRequestMessage({ type: "AUTH_DEVICE_POLL", payload: { deviceCode: "abc12345" } }),
+			).toBe(true);
 		});
 
 		it("should return false for null", () => {

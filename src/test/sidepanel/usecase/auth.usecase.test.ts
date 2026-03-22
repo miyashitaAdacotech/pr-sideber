@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SendMessage } from "../../../shared/ports/message.port";
+import type { DeviceCodeResponse, PollResult } from "../../../shared/types/auth";
 import type { ResponseMessage } from "../../../shared/types/messages";
 import { createAuthUseCase } from "../../../sidepanel/usecase/auth.usecase";
-import type { DeviceCodeResponse, PollResult } from "../../../shared/types/auth";
 
 describe("auth usecase", () => {
 	let mockSendMessage: ReturnType<typeof vi.fn>;
@@ -85,7 +85,9 @@ describe("auth usecase", () => {
 			mockSendMessage.mockResolvedValue(response);
 
 			const useCase = createAuthUseCase(mockSendMessage as SendMessage);
-			const promise = useCase.waitForAuthorization("device-code-123", 5, 900).catch((e: unknown) => e);
+			const promise = useCase
+				.waitForAuthorization("device-code-123", 5, 900)
+				.catch((e: unknown) => e);
 
 			await vi.advanceTimersByTimeAsync(5000);
 
@@ -98,7 +100,9 @@ describe("auth usecase", () => {
 			mockSendMessage.mockRejectedValue(new Error("Network error"));
 
 			const useCase = createAuthUseCase(mockSendMessage as SendMessage);
-			const promise = useCase.waitForAuthorization("device-code-123", 5, 900).catch((e: unknown) => e);
+			const promise = useCase
+				.waitForAuthorization("device-code-123", 5, 900)
+				.catch((e: unknown) => e);
 
 			await vi.advanceTimersByTimeAsync(5000);
 
