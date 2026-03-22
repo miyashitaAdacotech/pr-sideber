@@ -1,3 +1,7 @@
+pub mod error;
+pub mod parser;
+
+use domain::dto::PrListDto;
 use wasm_bindgen::prelude::*;
 
 /// WASM モジュール初期化。パニック時にコンソールにエラーを出力するフックを設定する。
@@ -20,6 +24,35 @@ pub fn greet(name: &str) -> JsValue {
     }
 }
 
+/// GraphQL レスポンス JSON を受け取り、分類・ソート済みの PR リストを返す。
+///
+/// # Arguments
+/// * `raw_json` - GitHub GraphQL API のレスポンス JSON 文字列
+///
+/// # Returns
+/// * `my_prs` - 自分が author の PR リスト (JsValue にシリアライズ)
+/// * `review_requests` - レビューリクエストされた PR リスト (JsValue にシリアライズ)
+#[wasm_bindgen(js_name = "processPullRequests")]
+pub fn process_pull_requests(raw_json: &str, login: &str) -> Result<JsValue, JsError> {
+    let prs =
+        parser::parse_pull_request_nodes(raw_json).map_err(|e| JsError::new(&e.to_string()))?;
+
+    let processed = usecase::process::process_pull_requests(login, prs);
+
+    serde_wasm_bindgen::to_value(&ProcessedPrsResult {
+        my_prs: processed.my_prs,
+        review_requests: processed.review_requests,
+    })
+    .map_err(|e| JsError::new(&e.to_string()))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProcessedPrsResult {
+    my_prs: PrListDto,
+    review_requests: PrListDto,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -31,11 +64,115 @@ mod tests {
 
     #[test]
     fn greet_delegates_to_usecase() {
-        // adapter-wasm の greet は usecase::create_greeting に委譲する。
-        // JsValue のシリアライズはネイティブテストでは検証できないため、
-        // usecase 側のテストで入出力の正しさを担保する。
-        // ここでは usecase::create_greeting が正しく呼べることのみ確認する。
         let greeting = usecase::create_greeting("Test");
         assert_eq!(greeting.message, "Hello, Test!");
+    }
+
+    #[test]
+    fn parse_and_process_with_valid_json() {
+        let json = r#"{
+            "data": {
+                "myPrs": {
+                    "edges": [
+                        {
+                            "node": {
+                                "id": "PR_1",
+                                "title": "my pr",
+                                "url": "https://github.com/o/r/pull/1",
+                                "number": 1,
+                                "isDraft": false,
+                                "reviewDecision": "APPROVED",
+                                "author": { "login": "alice" },
+                                "commits": { "nodes": [] },
+                                "repository": { "nameWithOwner": "o/r" },
+                                "additions": 10,
+                                "deletions": 5,
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-02T00:00:00Z"
+                            }
+                        }
+                    ]
+                },
+                "reviewRequested": { "edges": [] }
+            }
+        }"#;
+
+        let prs = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed = usecase::process::process_pull_requests("alice", prs);
+        assert_eq!(processed.my_prs.items.len(), 1);
+        assert_eq!(processed.my_prs.items[0].number, 1);
+        assert!(processed.review_requests.items.is_empty());
+    }
+
+    #[test]
+    fn parse_and_process_with_empty_json() {
+        let json = r#"{
+            "data": {
+                "myPrs": { "edges": [] },
+                "reviewRequested": { "edges": [] }
+            }
+        }"#;
+
+        let prs = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed = usecase::process::process_pull_requests("alice", prs);
+        assert!(processed.my_prs.items.is_empty());
+        assert!(processed.review_requests.items.is_empty());
+    }
+
+    #[test]
+    fn parse_with_invalid_json_returns_error() {
+        let result = parser::parse_pull_request_nodes("not json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_and_process_classifies_by_author() {
+        let json = r#"{
+            "data": {
+                "myPrs": {
+                    "edges": [
+                        {
+                            "node": {
+                                "id": "PR_1",
+                                "title": "my pr",
+                                "url": "https://github.com/o/r/pull/1",
+                                "number": 1,
+                                "isDraft": false,
+                                "reviewDecision": null,
+                                "author": { "login": "alice" },
+                                "commits": { "nodes": [] },
+                                "repository": { "nameWithOwner": "o/r" },
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-02T00:00:00Z"
+                            }
+                        }
+                    ]
+                },
+                "reviewRequested": {
+                    "edges": [
+                        {
+                            "node": {
+                                "id": "PR_2",
+                                "title": "review pr",
+                                "url": "https://github.com/o/r/pull/2",
+                                "number": 2,
+                                "isDraft": false,
+                                "reviewDecision": null,
+                                "author": { "login": "bob" },
+                                "commits": { "nodes": [] },
+                                "repository": { "nameWithOwner": "o/r" },
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-03T00:00:00Z"
+                            }
+                        }
+                    ]
+                }
+            }
+        }"#;
+
+        let prs = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed = usecase::process::process_pull_requests("alice", prs);
+        assert_eq!(processed.my_prs.items.len(), 1);
+        assert_eq!(processed.review_requests.items.len(), 1);
     }
 }

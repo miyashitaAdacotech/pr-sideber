@@ -38,7 +38,10 @@ export function createAuthUseCase(sendMessage: SendMessage) {
 				return false;
 			}
 			return response.data.isAuthenticated;
-		} catch {
+		} catch (error) {
+			if (import.meta.env.DEV) {
+				console.error("[auth.usecase] checkAuth failed:", error);
+			}
 			return false;
 		}
 	}

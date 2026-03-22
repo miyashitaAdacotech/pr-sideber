@@ -1511,3 +1511,238 @@ describe("ChromeIdentityAdapter — ネットワークエラー時のトーク�
 		});
 	});
 });
+
+// ============================================================
+// Issue #108: verification_uri 検証、cause 保持、dispose()
+// ============================================================
+
+describe("ChromeIdentityAdapter — verification_uri validation (Issue #108)", () => {
+	let adapter: ChromeIdentityAdapter;
+	let mockStorage: ReturnType<typeof createMockStorage>;
+	let originalFetch: typeof globalThis.fetch;
+
+	beforeEach(() => {
+		setupChromeMock();
+		mockStorage = createMockStorage();
+		mockStorage.set.mockResolvedValue(undefined);
+		mockStorage.remove.mockResolvedValue(undefined);
+		adapter = new ChromeIdentityAdapter(mockStorage, TEST_CONFIG);
+		originalFetch = globalThis.fetch;
+	});
+
+	afterEach(() => {
+		resetChromeMock();
+		globalThis.fetch = originalFetch;
+	});
+
+	it("should accept valid verification_uri (https://github.com/login/device)", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				device_code: MOCK_DEVICE_CODE_RESPONSE.deviceCode,
+				user_code: MOCK_DEVICE_CODE_RESPONSE.userCode,
+				verification_uri: "https://github.com/login/device",
+				expires_in: MOCK_DEVICE_CODE_RESPONSE.expiresIn,
+				interval: MOCK_DEVICE_CODE_RESPONSE.interval,
+			}),
+		});
+
+		const result = await adapter.requestDeviceCode();
+		expect(result.verificationUri).toBe("https://github.com/login/device");
+	});
+
+	it("should reject verification_uri with userinfo-based URL bypass (github.com@evil.com)", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				device_code: MOCK_DEVICE_CODE_RESPONSE.deviceCode,
+				user_code: MOCK_DEVICE_CODE_RESPONSE.userCode,
+				verification_uri: "https://github.com@evil.com/",
+				expires_in: MOCK_DEVICE_CODE_RESPONSE.expiresIn,
+				interval: MOCK_DEVICE_CODE_RESPONSE.interval,
+			}),
+		});
+
+		const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).code).toBe("device_code_validation_failed");
+	});
+
+	it("should reject verification_uri pointing to a non-GitHub domain", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				device_code: MOCK_DEVICE_CODE_RESPONSE.deviceCode,
+				user_code: MOCK_DEVICE_CODE_RESPONSE.userCode,
+				verification_uri: "https://evil.com/phish",
+				expires_in: MOCK_DEVICE_CODE_RESPONSE.expiresIn,
+				interval: MOCK_DEVICE_CODE_RESPONSE.interval,
+			}),
+		});
+
+		const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).code).toBe("device_code_validation_failed");
+	});
+
+	it("should reject verification_uri using HTTP instead of HTTPS", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				device_code: MOCK_DEVICE_CODE_RESPONSE.deviceCode,
+				user_code: MOCK_DEVICE_CODE_RESPONSE.userCode,
+				verification_uri: "http://github.com/login/device",
+				expires_in: MOCK_DEVICE_CODE_RESPONSE.expiresIn,
+				interval: MOCK_DEVICE_CODE_RESPONSE.interval,
+			}),
+		});
+
+		const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).code).toBe("device_code_validation_failed");
+	});
+
+	it("should reject verification_uri with a spoofed subdomain (github.com.evil.com)", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				device_code: MOCK_DEVICE_CODE_RESPONSE.deviceCode,
+				user_code: MOCK_DEVICE_CODE_RESPONSE.userCode,
+				verification_uri: "https://github.com.evil.com/",
+				expires_in: MOCK_DEVICE_CODE_RESPONSE.expiresIn,
+				interval: MOCK_DEVICE_CODE_RESPONSE.interval,
+			}),
+		});
+
+		const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).code).toBe("device_code_validation_failed");
+	});
+});
+
+describe("ChromeIdentityAdapter — AuthError cause preservation (Issue #108)", () => {
+	let adapter: ChromeIdentityAdapter;
+	let mockStorage: ReturnType<typeof createMockStorage>;
+	let originalFetch: typeof globalThis.fetch;
+
+	beforeEach(() => {
+		setupChromeMock();
+		mockStorage = createMockStorage();
+		mockStorage.set.mockResolvedValue(undefined);
+		mockStorage.remove.mockResolvedValue(undefined);
+		adapter = new ChromeIdentityAdapter(mockStorage, TEST_CONFIG);
+		originalFetch = globalThis.fetch;
+	});
+
+	afterEach(() => {
+		resetChromeMock();
+		globalThis.fetch = originalFetch;
+	});
+
+	it("should preserve original error as cause when requestDeviceCode fetch rejects", async () => {
+		const originalError = new TypeError("Failed to fetch");
+		globalThis.fetch = vi.fn().mockRejectedValue(originalError);
+
+		const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).cause).toBeInstanceOf(Error);
+		expect(((error as AuthError).cause as Error).message).toBe(originalError.message);
+	});
+
+	it("should preserve original error as cause when pollForToken fetch rejects", async () => {
+		const originalError = new TypeError("Network error");
+		globalThis.fetch = vi.fn().mockRejectedValue(originalError);
+
+		const error = await adapter
+			.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+			.catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).cause).toBeInstanceOf(Error);
+		expect(((error as AuthError).cause as Error).message).toBe(originalError.message);
+	});
+
+	it("should NOT include cause when requestDeviceCode gets HTTP error response (ok: false)", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 500,
+			statusText: "Internal Server Error",
+		});
+
+		const error = await adapter.requestDeviceCode().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).code).toBe("device_code_request_failed");
+		expect((error as AuthError).cause).toBeUndefined();
+	});
+
+	it("should NOT include cause when pollForToken gets HTTP error response (ok: false)", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 500,
+		});
+
+		const error = await adapter
+			.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+			.catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(AuthError);
+		expect((error as AuthError).code).toBe("token_exchange_failed");
+		expect((error as AuthError).cause).toBeUndefined();
+	});
+});
+
+describe("ChromeIdentityAdapter — dispose() (Issue #108)", () => {
+	let adapter: ChromeIdentityAdapter;
+	let mockStorage: ReturnType<typeof createMockStorage>;
+
+	beforeEach(() => {
+		setupChromeMock();
+		mockStorage = createMockStorage();
+		mockStorage.set.mockResolvedValue(undefined);
+		mockStorage.remove.mockResolvedValue(undefined);
+		adapter = new ChromeIdentityAdapter(mockStorage, TEST_CONFIG);
+	});
+
+	afterEach(() => {
+		resetChromeMock();
+	});
+
+	it("should call chrome.storage.onChanged.removeListener on dispose()", () => {
+		const chromeMock = getChromeMock();
+
+		adapter.dispose();
+
+		expect(chromeMock.storage.onChanged.removeListener).toHaveBeenCalledTimes(1);
+	});
+
+	it("should be idempotent — calling dispose() twice does not throw", () => {
+		adapter.dispose();
+		expect(() => adapter.dispose()).not.toThrow();
+	});
+
+	it("should not update cache after dispose() when storage change fires", async () => {
+		// まずキャッシュを初期化（authenticated = true にする）
+		mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+		await adapter.isAuthenticated();
+
+		const chromeMock = getChromeMock();
+		const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0] as (
+			changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+			areaName: string,
+		) => void;
+
+		// dispose 呼び出し
+		adapter.dispose();
+
+		// dispose 後にストレージ変更を発火（トークン削除）
+		listener({ github_auth_token: { oldValue: MOCK_TOKEN } }, "local");
+
+		// キャッシュが更新されていないことを確認（true のまま）
+		mockStorage.get.mockClear();
+		mockStorage.get.mockImplementation(() => {
+			throw new Error("storage.get should not be called when cache is populated");
+		});
+
+		const result = await adapter.isAuthenticated();
+		expect(result).toBe(true);
+		expect(mockStorage.get).not.toHaveBeenCalled();
+	});
+});

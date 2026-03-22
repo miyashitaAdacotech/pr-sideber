@@ -10,11 +10,17 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+domain = { path = "../domain" }
 usecase = { path = "../usecase" }
+serde = { workspace = true }
+serde_json = "1"
 wasm-bindgen = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 console_error_panic_hook = { workspace = true }
 web-sys = { version = "0.3", features = ["console"] }
+
+[package.metadata.cargo-machete]
+ignored = ["serde", "serde_json", "domain"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
