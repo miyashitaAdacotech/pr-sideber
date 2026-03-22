@@ -47,10 +47,14 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 		const ADAPTER_VIOLATION_DIR = resolve(PROJECT_ROOT, "src/adapter/__test_violation__");
 		const ADAPTER_VIOLATION_FILE = resolve(ADAPTER_VIOLATION_DIR, "temp_violation.ts");
 
+		const USECASE_VIOLATION_DIR = resolve(PROJECT_ROOT, "src/sidepanel/usecase/__test_violation__");
+		const USECASE_VIOLATION_FILE = resolve(USECASE_VIOLATION_DIR, "temp_violation.ts");
+
 		function cleanupViolationDirs(): void {
 			rmSync(DOMAIN_VIOLATION_DIR, { recursive: true, force: true });
 			rmSync(SHARED_VIOLATION_DIR, { recursive: true, force: true });
 			rmSync(ADAPTER_VIOLATION_DIR, { recursive: true, force: true });
+			rmSync(USECASE_VIOLATION_DIR, { recursive: true, force: true });
 		}
 
 		let depcruiseAvailable = false;
@@ -90,6 +94,14 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 				'import { handleMessage } from "../../background/message-handler";\n',
 				"utf-8",
 			);
+
+			// sidepanel/usecase → adapter/github への不正な import
+			mkdirSync(USECASE_VIOLATION_DIR, { recursive: true });
+			writeFileSync(
+				USECASE_VIOLATION_FILE,
+				'import { GitHubGraphQLClient } from "../../../adapter/github/graphql-client";\n',
+				"utf-8",
+			);
 		});
 
 		afterAll(() => {
@@ -98,7 +110,7 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 
 		/**
 		 * 指定ディレクトリに対して depcruise を実行し、違反を検出できるか検証するヘルパー。
-		 * dependency-cruiser が未インストールならテストを skip する。
+		 * dependency-cruiser が未インストールならテストを失敗させる。
 		 */
 		function assertViolationDetected(targetDir: string, description: string): void {
 			if (!depcruiseAvailable) {
@@ -133,6 +145,13 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 		it("adapter → background の違反を検出すること", () => {
 			assertViolationDetected("src/adapter/__test_violation__", "adapter→background");
 		});
+
+		it("sidepanel/usecase → adapter/github の違反を検出すること", () => {
+			assertViolationDetected(
+				"src/sidepanel/usecase/__test_violation__",
+				"sidepanel/usecase→adapter/github",
+			);
+		});
 	});
 
 	describe("ルール定義", () => {
@@ -145,6 +164,7 @@ describe("dependency-cruiser アーキテクチャガード", () => {
 
 		function getRuleNames(): string[] {
 			const config = loadConfig();
+			expect(config.forbidden, "forbidden ルールが未定義です").toBeDefined();
 			return config.forbidden.map((rule) => rule.name);
 		}
 
