@@ -12,6 +12,12 @@ type ChromeMock = {
 			remove: ReturnType<typeof vi.fn>;
 		};
 	};
+	runtime: {
+		sendMessage: ReturnType<typeof vi.fn>;
+		onMessage: {
+			addListener: ReturnType<typeof vi.fn>;
+		};
+	};
 };
 
 let chromeMock: ChromeMock;
@@ -27,6 +33,12 @@ function createChromeMock(): ChromeMock {
 				get: vi.fn(),
 				set: vi.fn(),
 				remove: vi.fn(),
+			},
+		},
+		runtime: {
+			sendMessage: vi.fn(),
+			onMessage: {
+				addListener: vi.fn(),
 			},
 		},
 	};

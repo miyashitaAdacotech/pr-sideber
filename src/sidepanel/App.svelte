@@ -1,22 +1,42 @@
 <script lang="ts">
-	import { loadGreeting } from "../wasm/index.js";
+	import LoginScreen from "./components/LoginScreen.svelte";
+	import MainScreen from "./components/MainScreen.svelte";
+	import { login, logout, checkAuth } from "./usecase/auth.usecase.js";
 
-	let message = $state("Loading WASM...");
+	let authenticated = $state(false);
+	let loading = $state(true);
 
-	async function load() {
+	async function initialize() {
 		try {
-			message = await loadGreeting("PR Sidebar");
+			authenticated = await checkAuth();
 		} catch (e: unknown) {
-			const errorMessage =
-				e instanceof Error ? e.message : "Unknown error";
-			message = `WASM init failed: ${errorMessage}`;
+			const message = e instanceof Error ? e.message : "Unknown error";
+			console.error("Auth check failed:", message);
+			authenticated = false;
+		} finally {
+			loading = false;
 		}
 	}
 
-	load();
+	$effect(() => {
+		initialize();
+	});
+
+	async function handleLogin(): Promise<void> {
+		await login();
+		authenticated = true;
+	}
+
+	async function handleLogout(): Promise<void> {
+		await logout();
+		authenticated = false;
+	}
 </script>
 
-<main>
-	<h1>PR Sidebar</h1>
-	<p>{message}</p>
-</main>
+{#if loading}
+	<p>Loading...</p>
+{:else if authenticated}
+	<MainScreen onLogout={handleLogout} />
+{:else}
+	<LoginScreen onLogin={handleLogin} />
+{/if}
