@@ -15,9 +15,9 @@ tools:
 ## チェック観点
 
 ### OAuth / 認証フロー
-- state パラメータによる CSRF 対策
+- state パラメータによる CSRF 対策 (※本プロジェクトは Device Flow のため不要 — ADR-001)
 - redirect_uri の固定
-- PKCE の使用
+- PKCE の使用 (※本プロジェクトは Device Flow のため不要 — ADR-001)
 - token の保存場所が chrome.storage.local に限定されているか
 - token scope が最小限か
 - refresh token のローテーション
