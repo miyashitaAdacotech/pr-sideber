@@ -2,7 +2,7 @@ import type { AuthPort } from "../../domain/ports/auth.port";
 import type { StoragePort } from "../../domain/ports/storage.port";
 import type { AuthToken, DeviceCodeResponse, PollResult } from "../../domain/types/auth";
 import { AuthError, isAuthToken } from "../../shared/types/auth";
-import { NetworkError } from "../../shared/types/errors";
+import { NetworkError, RateLimitError } from "../../shared/types/errors";
 import type { OAuthConfig } from "./oauth.config";
 
 const TOKEN_STORAGE_KEY = "github_auth_token";
@@ -22,6 +22,9 @@ const REFRESH_MAX_ATTEMPTS = 3;
 
 /** リトライ時の基本待機時間 (ms)。指数バックオフで 1s → 2s と増加する */
 const REFRESH_BASE_DELAY_MS = 1000;
+
+/** Retry-After の上限 (24時間)。悪意あるサーバーの巨大値を防ぐ */
+const RETRY_AFTER_MAX_MS = 24 * 60 * 60 * 1000;
 
 export class ChromeIdentityAdapter implements AuthPort {
 	private cachedAuthenticated: boolean | null = null;
@@ -199,9 +202,26 @@ export class ChromeIdentityAdapter implements AuthPort {
 				const refreshed = await this.refreshPromise;
 				if (refreshed !== null) return refreshed;
 				// 回復不能エラー (HTTP 4xx など) で null が返った場合
+				if (import.meta.env.DEV) {
+					console.error(
+						"[identity.adapter] Refresh returned null (unrecoverable). Clearing token.",
+					);
+				}
 				await this.clearToken();
 				return null;
 			} catch (error: unknown) {
+				// RateLimitError は NetworkError のサブクラスなので先にチェックする
+				if (error instanceof RateLimitError) {
+					// 429: clearToken せずトークンを保護。再認証ループを防ぐ
+					if (import.meta.env.DEV) {
+						console.error("[identity.adapter] Rate limited. Not clearing token.");
+					}
+					if (this.isTokenStillValid(token.expiresAt)) {
+						return token;
+					}
+					// 期限切れでも clearToken しない
+					return null;
+				}
 				if (error instanceof NetworkError) {
 					// 一時的なネットワーク障害: トークンがまだ有効期限内ならそのまま返す
 					if (this.isTokenStillValid(token.expiresAt)) {
@@ -279,14 +299,22 @@ export class ChromeIdentityAdapter implements AuthPort {
 			try {
 				return await this.attemptRefreshRequest(token.refreshToken);
 			} catch (error: unknown) {
+				// RateLimitError は即座に投げる (リトライで Rate Limit を悪化させない)
+				if (error instanceof RateLimitError) throw error;
 				if (!this.isTransientError(error)) {
-					// 回復不能エラー (HTTP 4xx, バリデーション失敗) → リトライしない
+					if (import.meta.env.DEV) {
+						console.error("[identity.adapter] Unrecoverable refresh error, not retrying:", error);
+					}
 					return null;
 				}
 				lastError = error;
 			}
 		}
 
+		// 429 (RateLimitError) が原因なら RateLimitError をそのまま throw
+		if (lastError instanceof RateLimitError) {
+			throw lastError;
+		}
 		throw new NetworkError("Token refresh failed after retries", {
 			cause: lastError,
 		});
@@ -322,10 +350,30 @@ export class ChromeIdentityAdapter implements AuthPort {
 		});
 
 		if (!response.ok) {
-			if (response.status >= 500 || response.status === 429) {
+			if (response.status === 429) {
+				const retryAfter = response.headers.get("Retry-After");
+				const parsedRetryAfter = retryAfter ? Number.parseInt(retryAfter, 10) : Number.NaN;
+				const retryAfterMs =
+					Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0
+						? Math.min(parsedRetryAfter * 1000, RETRY_AFTER_MAX_MS)
+						: 60_000;
+				if (import.meta.env.DEV) {
+					console.error(
+						`[identity.adapter] Rate limited during token refresh (429). Retry after ${retryAfterMs}ms`,
+					);
+				}
+				throw new RateLimitError("Rate limited during token refresh", retryAfterMs);
+			}
+			if (response.status >= 500) {
+				if (import.meta.env.DEV) {
+					console.error(`[identity.adapter] Server error during token refresh: ${response.status}`);
+				}
 				throw new NetworkError("Server error during token refresh");
 			}
 			// HTTP 4xx: refresh_token が無効などの回復不能エラー
+			if (import.meta.env.DEV) {
+				console.error(`[identity.adapter] Unrecoverable refresh error: ${response.status}`);
+			}
 			return null;
 		}
 

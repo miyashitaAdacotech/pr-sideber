@@ -12,6 +12,19 @@ export class NetworkError extends Error {
 	constructor(message: string, options?: ErrorOptions) {
 		super(message, options);
 		this.name = "NetworkError";
+		Object.setPrototypeOf(this, NetworkError.prototype);
+	}
+}
+
+/** Rate Limit (HTTP 429) を表すエラー。NetworkError のサブクラス */
+export class RateLimitError extends NetworkError {
+	readonly retryAfterMs: number;
+
+	constructor(message: string, retryAfterMs: number, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "RateLimitError";
+		this.retryAfterMs = retryAfterMs;
+		Object.setPrototypeOf(this, RateLimitError.prototype);
 	}
 }
 
