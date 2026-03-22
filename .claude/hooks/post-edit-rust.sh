@@ -13,9 +13,9 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# Rust ファイル以外はスキップ
+# Rust/Cargo ファイル以外はスキップ
 case "$FILE_PATH" in
-  *.rs) ;;
+  *.rs|*/Cargo.toml) ;;
   *) exit 0 ;;
 esac
 
