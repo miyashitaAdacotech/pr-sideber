@@ -95,6 +95,13 @@ describe("auto-refresh usecase", () => {
 
 			expect(mockAlarm.onAlarm).toHaveBeenCalledTimes(1);
 		});
+
+		it("should not create duplicate alarms when start is called twice", () => {
+			const useCase = createUseCase();
+			useCase.start();
+			useCase.start();
+			expect(mockAlarm.create).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	describe("stop", () => {
@@ -112,6 +119,11 @@ describe("auto-refresh usecase", () => {
 			await useCase.stop();
 
 			expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+		});
+
+		it("should not throw when stop is called without start", async () => {
+			const useCase = createUseCase();
+			await expect(useCase.stop()).resolves.not.toThrow();
 		});
 	});
 
@@ -183,6 +195,13 @@ describe("auto-refresh usecase", () => {
 
 			expect(mockFetchAndProcessPrs).toHaveBeenCalledTimes(1);
 			expect(mockStorage.set).toHaveBeenCalledTimes(1);
+		});
+
+		it("should NOT call refresh when a different alarm fires", async () => {
+			const useCase = createUseCase();
+			useCase.start();
+			await capturedAlarmCallback?.("some-other-alarm");
+			expect(mockFetchAndProcessPrs).not.toHaveBeenCalled();
 		});
 	});
 });

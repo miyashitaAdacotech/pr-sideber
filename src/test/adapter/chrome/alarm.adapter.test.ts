@@ -33,6 +33,13 @@ describe("ChromeAlarmAdapter", () => {
 			expect(mock.alarms.clear).toHaveBeenCalledWith("pr-refresh");
 			expect(result).toBe(true);
 		});
+
+		it("should return false when alarm does not exist", async () => {
+			const mock = getChromeMock();
+			mock.alarms.clear.mockResolvedValue(false);
+			const result = await adapter.clear("nonexistent");
+			expect(result).toBe(false);
+		});
 	});
 
 	describe("onAlarm", () => {

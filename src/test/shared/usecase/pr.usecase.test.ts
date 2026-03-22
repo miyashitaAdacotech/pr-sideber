@@ -145,6 +145,30 @@ describe("pr usecase", () => {
 			await expect(useCase.fetchPrs("testuser")).rejects.toThrow("Failed");
 			expect(mockStorage.set).not.toHaveBeenCalled();
 		});
+
+		it("should work without storage (backward compatibility)", async () => {
+			const rawResult = { rawJson: '{"data":{}}', hasMore: false };
+			const response = { ok: true as const, data: rawResult };
+			mockSendMessage.mockResolvedValue(response);
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor);
+			const result = await useCase.fetchPrs("testuser");
+
+			expect(result.myPrs).toEqual(mockProcessedResult.myPrs);
+			expect(result.hasMore).toBe(false);
+		});
+
+		it("should still return result when storage.set fails", async () => {
+			const rawResult = { rawJson: '{"data":{}}', hasMore: false };
+			const response = { ok: true as const, data: rawResult };
+			mockSendMessage.mockResolvedValue(response);
+			mockStorage.set.mockRejectedValue(new Error("Storage full"));
+
+			const useCase = createPrUseCase(mockSendMessage as SendMessage, mockPrProcessor, mockStorage);
+			const result = await useCase.fetchPrs("testuser");
+
+			expect(result.myPrs).toEqual(mockProcessedResult.myPrs);
+		});
 	});
 
 	describe("getCachedPrs", () => {
