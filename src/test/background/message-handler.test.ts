@@ -47,7 +47,7 @@ describe("createMessageHandler", () => {
 
 			const sendResponse = vi.fn();
 			const message: AuthMessage = { type: "AUTH_LOGIN" };
-			const result = listener(message, {}, sendResponse);
+			const result = listener(message, { id: getChromeMock().runtime.id }, sendResponse);
 
 			expect(result).toBe(true);
 			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
@@ -66,7 +66,7 @@ describe("createMessageHandler", () => {
 
 			const sendResponse = vi.fn();
 			const message: AuthMessage = { type: "AUTH_LOGIN" };
-			listener(message, {}, sendResponse);
+			listener(message, { id: getChromeMock().runtime.id }, sendResponse);
 
 			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
@@ -76,7 +76,7 @@ describe("createMessageHandler", () => {
 	});
 
 	describe("AUTH_LOGOUT", () => {
-		it("should call clearToken and return AUTH_SUCCESS", async () => {
+		it("should call clearToken and return AUTH_SUCCESS with authenticated: false", async () => {
 			mockAuth.clearToken.mockResolvedValue(undefined);
 
 			createMessageHandler(mockAuth);
@@ -84,13 +84,29 @@ describe("createMessageHandler", () => {
 
 			const sendResponse = vi.fn();
 			const message: AuthMessage = { type: "AUTH_LOGOUT" };
-			listener(message, {}, sendResponse);
+			listener(message, { id: getChromeMock().runtime.id }, sendResponse);
 
 			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
 			expect(mockAuth.clearToken).toHaveBeenCalledOnce();
 			const response: AuthResponse = sendResponse.mock.calls[0][0];
-			expect(response).toEqual({ type: "AUTH_SUCCESS", authenticated: true });
+			expect(response).toEqual({ type: "AUTH_SUCCESS", authenticated: false });
+		});
+
+		it("should return AUTH_FAILURE when clearToken throws", async () => {
+			mockAuth.clearToken.mockRejectedValue(new Error("Storage error"));
+
+			createMessageHandler(mockAuth);
+			const listener = getChromeMock().runtime.onMessage.addListener.mock.calls[0][0];
+
+			const sendResponse = vi.fn();
+			const message: AuthMessage = { type: "AUTH_LOGOUT" };
+			listener(message, { id: getChromeMock().runtime.id }, sendResponse);
+
+			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
+
+			const response: AuthResponse = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ type: "AUTH_FAILURE", error: "Storage error" });
 		});
 	});
 
@@ -103,7 +119,7 @@ describe("createMessageHandler", () => {
 
 			const sendResponse = vi.fn();
 			const message: AuthMessage = { type: "AUTH_CHECK" };
-			listener(message, {}, sendResponse);
+			listener(message, { id: getChromeMock().runtime.id }, sendResponse);
 
 			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
@@ -119,12 +135,26 @@ describe("createMessageHandler", () => {
 
 			const sendResponse = vi.fn();
 			const message: AuthMessage = { type: "AUTH_CHECK" };
-			listener(message, {}, sendResponse);
+			listener(message, { id: getChromeMock().runtime.id }, sendResponse);
 
 			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
 			const response: AuthResponse = sendResponse.mock.calls[0][0];
 			expect(response).toEqual({ type: "AUTH_STATUS", authenticated: false });
+		});
+	});
+
+	describe("sender validation", () => {
+		it("should return undefined when sender.id does not match chrome.runtime.id", () => {
+			createMessageHandler(mockAuth);
+			const listener = getChromeMock().runtime.onMessage.addListener.mock.calls[0][0];
+
+			const sendResponse = vi.fn();
+			const message: AuthMessage = { type: "AUTH_LOGIN" };
+			const result = listener(message, { id: "malicious-extension-id" }, sendResponse);
+
+			expect(result).toBeUndefined();
+			expect(sendResponse).not.toHaveBeenCalled();
 		});
 	});
 
@@ -134,7 +164,7 @@ describe("createMessageHandler", () => {
 			const listener = getChromeMock().runtime.onMessage.addListener.mock.calls[0][0];
 
 			const sendResponse = vi.fn();
-			const result = listener({ type: "UNKNOWN_TYPE" }, {}, sendResponse);
+			const result = listener({ type: "UNKNOWN_TYPE" }, { id: getChromeMock().runtime.id }, sendResponse);
 
 			expect(result).toBeUndefined();
 			expect(sendResponse).not.toHaveBeenCalled();

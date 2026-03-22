@@ -1,34 +1,37 @@
 <script lang="ts">
+	import { untrack } from "svelte";
 	import LoginScreen from "./components/LoginScreen.svelte";
 	import MainScreen from "./components/MainScreen.svelte";
-	import { login, logout, checkAuth } from "./usecase/auth.usecase.js";
+	import { createAuthUseCase } from "./usecase/auth.usecase.js";
+
+	const authUseCase = createAuthUseCase((msg) => chrome.runtime.sendMessage(msg));
 
 	let authenticated = $state(false);
 	let loading = $state(true);
 
-	async function initialize() {
-		try {
-			authenticated = await checkAuth();
-		} catch (e: unknown) {
-			const message = e instanceof Error ? e.message : "Unknown error";
-			console.error("Auth check failed:", message);
-			authenticated = false;
-		} finally {
-			loading = false;
-		}
-	}
-
 	$effect(() => {
-		initialize();
+		let cancelled = false;
+
+		untrack(async () => {
+			const result = await authUseCase.checkAuth();
+			if (!cancelled) {
+				authenticated = result;
+				loading = false;
+			}
+		});
+
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	async function handleLogin(): Promise<void> {
-		await login();
+		await authUseCase.login();
 		authenticated = true;
 	}
 
 	async function handleLogout(): Promise<void> {
-		await logout();
+		await authUseCase.logout();
 		authenticated = false;
 	}
 </script>

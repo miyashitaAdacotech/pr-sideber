@@ -13,6 +13,7 @@ type ChromeMock = {
 		};
 	};
 	runtime: {
+		id: string;
 		sendMessage: ReturnType<typeof vi.fn>;
 		onMessage: {
 			addListener: ReturnType<typeof vi.fn>;
@@ -36,6 +37,7 @@ function createChromeMock(): ChromeMock {
 			},
 		},
 		runtime: {
+			id: "test-extension-id",
 			sendMessage: vi.fn(),
 			onMessage: {
 				addListener: vi.fn(),

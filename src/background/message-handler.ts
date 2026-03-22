@@ -19,8 +19,13 @@ async function handleAuthMessage(auth: AuthPort, message: AuthMessage): Promise<
 			}
 		}
 		case "AUTH_LOGOUT": {
-			await auth.clearToken();
-			return { type: "AUTH_SUCCESS", authenticated: true };
+			try {
+				await auth.clearToken();
+				return { type: "AUTH_SUCCESS", authenticated: false };
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error";
+				return { type: "AUTH_FAILURE", error: errorMessage };
+			}
 		}
 		case "AUTH_CHECK": {
 			const authenticated = await auth.isAuthenticated();
@@ -33,9 +38,13 @@ export function createMessageHandler(auth: AuthPort): void {
 	chrome.runtime.onMessage.addListener(
 		(
 			message: unknown,
-			_sender: chrome.runtime.MessageSender,
+			sender: chrome.runtime.MessageSender,
 			sendResponse: (response: AuthResponse) => void,
 		): true | undefined => {
+			if (sender.id !== chrome.runtime.id) {
+				return undefined;
+			}
+
 			if (!isAuthMessage(message)) {
 				return undefined;
 			}

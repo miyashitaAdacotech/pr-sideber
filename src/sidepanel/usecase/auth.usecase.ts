@@ -1,20 +1,43 @@
+import type { SendMessage } from "../../domain/ports/message.port";
 import type { AuthResponse } from "../../shared/types/messages";
 
-export async function login(): Promise<void> {
-	const response: AuthResponse = await chrome.runtime.sendMessage({ type: "AUTH_LOGIN" });
-	if (response.type === "AUTH_FAILURE") {
-		throw new Error(response.error);
+function assertResponse(response: AuthResponse | undefined): asserts response is AuthResponse {
+	if (response === undefined || response === null) {
+		throw new Error("No response from background");
 	}
 }
 
-export async function logout(): Promise<void> {
-	await chrome.runtime.sendMessage({ type: "AUTH_LOGOUT" });
-}
-
-export async function checkAuth(): Promise<boolean> {
-	const response: AuthResponse = await chrome.runtime.sendMessage({ type: "AUTH_CHECK" });
-	if (response.type === "AUTH_STATUS") {
-		return response.authenticated;
+export function createAuthUseCase(sendMessage: SendMessage) {
+	async function login(): Promise<void> {
+		const response = await sendMessage({ type: "AUTH_LOGIN" });
+		assertResponse(response);
+		if (response.type === "AUTH_FAILURE") {
+			throw new Error(response.error);
+		}
 	}
-	return false;
+
+	async function logout(): Promise<void> {
+		const response = await sendMessage({ type: "AUTH_LOGOUT" });
+		assertResponse(response);
+		if (response.type === "AUTH_FAILURE") {
+			throw new Error(response.error);
+		}
+	}
+
+	async function checkAuth(): Promise<boolean> {
+		try {
+			const response = await sendMessage({ type: "AUTH_CHECK" });
+			if (response === undefined || response === null) {
+				return false;
+			}
+			if (response.type === "AUTH_STATUS") {
+				return response.authenticated;
+			}
+			return false;
+		} catch {
+			return false;
+		}
+	}
+
+	return { login, logout, checkAuth };
 }
