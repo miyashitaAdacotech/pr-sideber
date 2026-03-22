@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getChromeMock, resetChromeMock, setupChromeMock } from "../mocks/chrome.mock";
+import { getChromeMock, resetChromeMock, setupChromeMock } from "../../mocks/chrome.mock";
 
-describe("sendMessage", () => {
+describe("chromeSendMessage", () => {
 	beforeEach(() => {
 		vi.resetModules();
 		setupChromeMock();
@@ -19,11 +19,28 @@ describe("sendMessage", () => {
 			},
 		);
 
-		const { sendMessage } = await import("../../shared/messaging");
-		await sendMessage("AUTH_STATUS");
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		await chromeSendMessage("AUTH_STATUS");
 
 		expect(mock.runtime.sendMessage).toHaveBeenCalledWith(
 			{ type: "AUTH_STATUS" },
+			expect.any(Function),
+		);
+	});
+
+	it("should call chrome.runtime.sendMessage with type and payload", async () => {
+		const mock = getChromeMock();
+		mock.runtime.sendMessage.mockImplementation(
+			(_message: unknown, callback: (response: unknown) => void) => {
+				callback({ ok: true, data: { status: "authorization_pending" } });
+			},
+		);
+
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		await chromeSendMessage("AUTH_DEVICE_POLL", { deviceCode: "abc123" });
+
+		expect(mock.runtime.sendMessage).toHaveBeenCalledWith(
+			{ type: "AUTH_DEVICE_POLL", payload: { deviceCode: "abc123" } },
 			expect.any(Function),
 		);
 	});
@@ -36,8 +53,8 @@ describe("sendMessage", () => {
 			},
 		);
 
-		const { sendMessage } = await import("../../shared/messaging");
-		const result = await sendMessage("AUTH_LOGOUT");
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		const result = await chromeSendMessage("AUTH_LOGOUT");
 
 		expect(result).toEqual({ ok: true, data: undefined });
 	});
@@ -50,8 +67,8 @@ describe("sendMessage", () => {
 			},
 		);
 
-		const { sendMessage } = await import("../../shared/messaging");
-		const result = await sendMessage("AUTH_LOGOUT");
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		const result = await chromeSendMessage("AUTH_LOGOUT");
 
 		expect(result).toEqual({
 			ok: false,
@@ -68,16 +85,13 @@ describe("sendMessage", () => {
 			},
 		);
 
-		const { sendMessage } = await import("../../shared/messaging");
-		const result = await sendMessage("AUTH_STATUS");
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		const result = await chromeSendMessage("AUTH_STATUS");
 
 		expect(result).toEqual({
 			ok: false,
 			error: { code: "RUNTIME_ERROR", message: "Extension context invalidated" },
 		});
-
-		// cleanup
-		mock.runtime.lastError = undefined;
 	});
 
 	it("should return ok: false with default message when lastError has no message", async () => {
@@ -89,16 +103,13 @@ describe("sendMessage", () => {
 			},
 		);
 
-		const { sendMessage } = await import("../../shared/messaging");
-		const result = await sendMessage("AUTH_LOGOUT");
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		const result = await chromeSendMessage("AUTH_LOGOUT");
 
 		expect(result).toEqual({
 			ok: false,
 			error: { code: "RUNTIME_ERROR", message: "Unknown runtime error" },
 		});
-
-		// cleanup
-		mock.runtime.lastError = undefined;
 	});
 
 	it("should return NO_RESPONSE when response is undefined without lastError", async () => {
@@ -109,8 +120,8 @@ describe("sendMessage", () => {
 			},
 		);
 
-		const { sendMessage } = await import("../../shared/messaging");
-		const result = await sendMessage("AUTH_STATUS");
+		const { chromeSendMessage } = await import("../../../adapter/chrome/message.adapter");
+		const result = await chromeSendMessage("AUTH_STATUS");
 
 		expect(result).toEqual({
 			ok: false,
