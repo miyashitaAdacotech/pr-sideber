@@ -16,15 +16,19 @@ export function createAutoRefreshUseCase(deps: AutoRefreshDeps) {
 	let started = false;
 	let unsubscribe: (() => void) | null = null;
 
-	function start(): void {
+	async function start(): Promise<void> {
 		if (started) {
 			return;
 		}
 		started = true;
-		deps.alarm.create(ALARM_NAME, INTERVAL_MINUTES);
+		await deps.alarm.create(ALARM_NAME, INTERVAL_MINUTES);
 		unsubscribe = deps.alarm.onAlarm((name: string) => {
 			if (name === ALARM_NAME) {
-				refresh();
+				refresh().catch((err: unknown) => {
+					if (import.meta.env.DEV) {
+						console.error("[auto-refresh] refresh failed:", err);
+					}
+				});
 			}
 		});
 	}

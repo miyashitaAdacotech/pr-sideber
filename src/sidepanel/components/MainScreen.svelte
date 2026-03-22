@@ -44,8 +44,10 @@
 					lastUpdatedAt = cached.lastUpdatedAt;
 					loading = false;
 				}
-			} catch {
-				// キャッシュ読み込み失敗は無視して最新取得に進む
+			} catch (err: unknown) {
+				if (import.meta.env.DEV) {
+					console.warn("[MainScreen] cache read failed:", err);
+				}
 			}
 
 			// バックグラウンドで最新データを取得
@@ -109,6 +111,11 @@
 			<button class="retry-button" onclick={loadPrs}>再試行</button>
 		</div>
 	{:else if data}
+		{#if error}
+			<div class="error-banner">
+				<p class="error-text">{error}</p>
+			</div>
+		{/if}
 		<PrSection title="My PRs" items={data.myPrs.items} />
 		<PrSection title="Review Requests" items={data.reviewRequests.items} />
 	{/if}
@@ -178,6 +185,20 @@
 	.last-updated {
 		font-size: 0.75rem;
 		color: #6a737d;
+	}
+
+	.error-banner {
+		background: #fff3cd;
+		border: 1px solid #ffc107;
+		border-radius: 4px;
+		padding: 0.5rem 0.75rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.error-text {
+		color: #856404;
+		font-size: 0.875rem;
+		margin: 0;
 	}
 
 	.error-container {

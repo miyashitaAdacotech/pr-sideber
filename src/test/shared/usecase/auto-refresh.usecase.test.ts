@@ -51,7 +51,7 @@ describe("auto-refresh usecase", () => {
 
 		capturedAlarmCallback = undefined;
 		mockAlarm = {
-			create: vi.fn(),
+			create: vi.fn().mockResolvedValue(undefined),
 			clear: vi.fn().mockResolvedValue(true),
 			onAlarm: vi.fn((callback: (name: string) => void) => {
 				capturedAlarmCallback = callback;
@@ -82,24 +82,24 @@ describe("auto-refresh usecase", () => {
 	}
 
 	describe("start", () => {
-		it("should create an alarm named 'pr-refresh' with 5-minute interval", () => {
+		it("should create an alarm named 'pr-refresh' with 5-minute interval", async () => {
 			const useCase = createUseCase();
-			useCase.start();
+			await useCase.start();
 
 			expect(mockAlarm.create).toHaveBeenCalledWith("pr-refresh", 5);
 		});
 
-		it("should register an onAlarm listener", () => {
+		it("should register an onAlarm listener", async () => {
 			const useCase = createUseCase();
-			useCase.start();
+			await useCase.start();
 
 			expect(mockAlarm.onAlarm).toHaveBeenCalledTimes(1);
 		});
 
-		it("should not create duplicate alarms when start is called twice", () => {
+		it("should not create duplicate alarms when start is called twice", async () => {
 			const useCase = createUseCase();
-			useCase.start();
-			useCase.start();
+			await useCase.start();
+			await useCase.start();
 			expect(mockAlarm.create).toHaveBeenCalledTimes(1);
 		});
 	});
@@ -107,7 +107,7 @@ describe("auto-refresh usecase", () => {
 	describe("stop", () => {
 		it("should clear the alarm", async () => {
 			const useCase = createUseCase();
-			useCase.start();
+			await useCase.start();
 			await useCase.stop();
 
 			expect(mockAlarm.clear).toHaveBeenCalledWith("pr-refresh");
@@ -115,7 +115,7 @@ describe("auto-refresh usecase", () => {
 
 		it("should unsubscribe the alarm listener", async () => {
 			const useCase = createUseCase();
-			useCase.start();
+			await useCase.start();
 			await useCase.stop();
 
 			expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
@@ -187,20 +187,22 @@ describe("auto-refresh usecase", () => {
 	describe("alarm trigger", () => {
 		it("should call refresh when the pr-refresh alarm fires", async () => {
 			const useCase = createUseCase();
-			useCase.start();
+			await useCase.start();
 
 			expect(capturedAlarmCallback).toBeDefined();
 			// アラーム発火をシミュレート
-			await capturedAlarmCallback?.("pr-refresh");
-
-			expect(mockFetchAndProcessPrs).toHaveBeenCalledTimes(1);
+			capturedAlarmCallback?.("pr-refresh");
+			// refresh() は catch 内で処理されるため、Promise の解決を待つ
+			await vi.waitFor(() => {
+				expect(mockFetchAndProcessPrs).toHaveBeenCalledTimes(1);
+			});
 			expect(mockStorage.set).toHaveBeenCalledTimes(1);
 		});
 
 		it("should NOT call refresh when a different alarm fires", async () => {
 			const useCase = createUseCase();
-			useCase.start();
-			await capturedAlarmCallback?.("some-other-alarm");
+			await useCase.start();
+			capturedAlarmCallback?.("some-other-alarm");
 			expect(mockFetchAndProcessPrs).not.toHaveBeenCalled();
 		});
 	});

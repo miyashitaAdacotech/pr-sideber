@@ -1,8 +1,8 @@
 import type { AlarmPort } from "../../domain/ports/alarm.port";
 
 export class ChromeAlarmAdapter implements AlarmPort {
-	create(name: string, periodInMinutes: number): void {
-		chrome.alarms.create(name, { periodInMinutes });
+	async create(name: string, periodInMinutes: number): Promise<void> {
+		await chrome.alarms.create(name, { periodInMinutes });
 	}
 
 	clear(name: string): Promise<boolean> {

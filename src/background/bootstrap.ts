@@ -44,7 +44,9 @@ export function initializeApp(): AppServices {
 			return { ...processed, hasMore: raw.hasMore };
 		},
 	});
-	autoRefresh.start();
+	autoRefresh.start().catch((err: unknown) => {
+		console.error("[bootstrap] Failed to start auto-refresh:", err);
+	});
 
 	let disposed = false;
 	const dispose = (): void => {

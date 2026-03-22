@@ -25,8 +25,10 @@ export function createPrUseCase(
 					data: result,
 					lastUpdatedAt: new Date().toISOString(),
 				});
-			} catch {
-				// キャッシュ保存失敗は結果の返却をブロックしない
+			} catch (err: unknown) {
+				if (import.meta.env.DEV) {
+					console.warn("[pr.usecase] cache write failed:", err);
+				}
 			}
 		}
 

@@ -25,11 +25,19 @@ export function isCachedPrData(value: unknown): value is CachedPrData {
 	if (data.myPrs === null || data.myPrs === undefined || typeof data.myPrs !== "object") {
 		return false;
 	}
+	const myPrs = data.myPrs as Record<string, unknown>;
+	if (!Array.isArray(myPrs.items)) {
+		return false;
+	}
 	if (
 		data.reviewRequests === null ||
 		data.reviewRequests === undefined ||
 		typeof data.reviewRequests !== "object"
 	) {
+		return false;
+	}
+	const reviewRequests = data.reviewRequests as Record<string, unknown>;
+	if (!Array.isArray(reviewRequests.items)) {
 		return false;
 	}
 	return true;
