@@ -4,7 +4,7 @@ import { resetChromeMock, setupChromeMock } from "../mocks/chrome.mock";
 describe("bootstrap with auth", () => {
 	beforeEach(() => {
 		setupChromeMock();
-		vi.stubEnv("VITE_GITHUB_CLIENT_ID", "test-client-id");
+		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 	});
 
 	afterEach(() => {

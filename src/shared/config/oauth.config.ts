@@ -1,10 +1,10 @@
 import type { OAuthConfig } from "../types/auth";
 
 export function createOAuthConfig(): OAuthConfig {
-	const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
+	const clientId = import.meta.env.GITHUB_CLIENT_ID;
 
 	if (!clientId) {
-		throw new Error("VITE_GITHUB_CLIENT_ID is not configured");
+		throw new Error("GITHUB_CLIENT_ID is not configured");
 	}
 
 	return {

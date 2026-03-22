@@ -3,17 +3,29 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 import manifest from "./manifest.config";
 
-export default defineConfig({
-	plugins: [svelte(), crx({ manifest })],
-	build: {
-		target: "esnext",
-	},
-	optimizeDeps: {
-		exclude: ["adapter-wasm"],
-	},
-	server: {
-		fs: {
-			allow: ["src", "rust-core/crates/adapter-wasm/pkg"],
+const isViteBuild = process.argv.includes("build");
+
+export default defineConfig(() => {
+	const clientId = process.env.GITHUB_CLIENT_ID ?? "";
+	if (isViteBuild && !clientId) {
+		throw new Error("GITHUB_CLIENT_ID must be set for production builds");
+	}
+
+	return {
+		plugins: [svelte(), crx({ manifest })],
+		define: {
+			"import.meta.env.GITHUB_CLIENT_ID": JSON.stringify(clientId),
 		},
-	},
+		build: {
+			target: "esnext",
+		},
+		optimizeDeps: {
+			exclude: ["adapter-wasm"],
+		},
+		server: {
+			fs: {
+				allow: ["src", "rust-core/crates/adapter-wasm/pkg"],
+			},
+		},
+	};
 });
