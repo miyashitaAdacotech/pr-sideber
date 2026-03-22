@@ -2,7 +2,7 @@ import type { AuthPort } from "../../domain/ports/auth.port";
 import type { StoragePort } from "../../domain/ports/storage.port";
 import { generateCodeChallenge, generateCodeVerifier, generateState } from "../../shared/crypto";
 import type { AuthToken, OAuthConfig } from "../../shared/types/auth";
-import { AuthError } from "../../shared/types/auth";
+import { AuthError, isAuthToken } from "../../shared/types/auth";
 
 const TOKEN_STORAGE_KEY = "github_auth_token";
 
@@ -25,7 +25,7 @@ export class ChromeIdentityAdapter implements AuthPort {
 	}
 
 	async getToken(): Promise<AuthToken | null> {
-		return this.storage.get<AuthToken>(TOKEN_STORAGE_KEY);
+		return this.storage.get<AuthToken>(TOKEN_STORAGE_KEY, isAuthToken);
 	}
 
 	async clearToken(): Promise<void> {
@@ -34,7 +34,13 @@ export class ChromeIdentityAdapter implements AuthPort {
 
 	async isAuthenticated(): Promise<boolean> {
 		const token = await this.getToken();
-		return token !== null;
+		if (token === null) {
+			return false;
+		}
+		if (token.expiresAt !== undefined && Date.now() >= token.expiresAt) {
+			return false;
+		}
+		return true;
 	}
 
 	private async executeAuthFlow(): Promise<AuthToken> {
@@ -166,10 +172,18 @@ export class ChromeIdentityAdapter implements AuthPort {
 			throw new AuthError("token_exchange_failed", "Invalid token response: missing access_token");
 		}
 
-		return {
+		const token: AuthToken = {
 			accessToken: data.access_token,
 			tokenType: typeof data.token_type === "string" ? data.token_type : "bearer",
 			scope: typeof data.scope === "string" ? data.scope : "",
+			// expires_in が 0 以下や Infinity の場合は「期限なし」として expiresAt を設定しない
+			...(typeof data.expires_in === "number" &&
+			Number.isFinite(data.expires_in) &&
+			data.expires_in > 0
+				? { expiresAt: Date.now() + data.expires_in * 1000 }
+				: {}),
+			...(typeof data.refresh_token === "string" ? { refreshToken: data.refresh_token } : {}),
 		};
+		return token;
 	}
 }

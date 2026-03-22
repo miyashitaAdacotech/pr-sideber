@@ -7,7 +7,22 @@ export type OAuthConfig = {
 	readonly scopes: readonly string[];
 };
 
+import type { AuthToken } from "../../domain/types/auth";
 export type { AuthToken } from "../../domain/types/auth";
+
+export function isAuthToken(value: unknown): value is AuthToken {
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return (
+		typeof obj.accessToken === "string" &&
+		obj.accessToken !== "" &&
+		typeof obj.tokenType === "string" &&
+		obj.tokenType !== "" &&
+		typeof obj.scope === "string"
+	);
+}
 
 export type AuthErrorCode =
 	| "authorization_failed"

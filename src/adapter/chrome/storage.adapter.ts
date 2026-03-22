@@ -1,10 +1,17 @@
 import type { StoragePort } from "../../domain/ports/storage.port";
 
 export class ChromeStorageAdapter implements StoragePort {
-	async get<T>(key: string): Promise<T | null> {
+	async get<T>(key: string, validate: (value: unknown) => value is T): Promise<T | null> {
 		const result = await chrome.storage.local.get(key);
-		if (key in result) {
-			return result[key] as T;
+		if (!(key in result)) {
+			return null;
+		}
+		const value: unknown = result[key];
+		if (validate(value)) {
+			return value;
+		}
+		if (import.meta.env.DEV) {
+			console.warn(`[storage] validation failed for key "${key}"`);
 		}
 		return null;
 	}
