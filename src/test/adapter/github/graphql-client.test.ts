@@ -355,13 +355,14 @@ describe("GitHubGraphQLClient", () => {
 			expect((error as GitHubApiError).statusCode).toBe(500);
 		});
 
-		it("should throw GitHubApiError with 'network_error' on fetch rejection", async () => {
+		it("should throw GitHubApiError with 'network_error' and generic message on fetch rejection", async () => {
 			globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("network_error");
-			expect((error as GitHubApiError).message).toContain("Failed to fetch");
+			expect((error as GitHubApiError).message).toBe("Network request failed");
+			expect((error as GitHubApiError).details).toBe("Failed to fetch");
 		});
 
 		it("should throw GitHubApiError with 'graphql_error' and generic message when response has errors field", async () => {
@@ -380,7 +381,7 @@ describe("GitHubGraphQLClient", () => {
 			expect((error as GitHubApiError).details).toContain("Field 'foo' doesn't exist");
 		});
 
-		it("should throw GitHubApiError with 'unknown' on invalid JSON response", async () => {
+		it("should throw GitHubApiError with 'unknown' and generic message on invalid JSON response", async () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
 				json: async () => {
@@ -391,6 +392,8 @@ describe("GitHubGraphQLClient", () => {
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("unknown");
+			expect((error as GitHubApiError).message).toBe("Failed to parse API response");
+			expect((error as GitHubApiError).details).toBe("Unexpected token < in JSON");
 		});
 
 		it("should propagate error when getAccessToken rejects", async () => {

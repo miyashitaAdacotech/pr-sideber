@@ -150,8 +150,8 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 				body: JSON.stringify({ query: PULL_REQUESTS_QUERY }),
 			});
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : "Unknown network error";
-			throw new GitHubApiError("network_error", message);
+			const details = error instanceof Error ? error.message : undefined;
+			throw new GitHubApiError("network_error", "Network request failed", undefined, details);
 		}
 
 		if (!response.ok) {
@@ -169,11 +169,13 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		try {
 			return (await response.json()) as GraphQLResponse;
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : "Unknown parse error";
-			throw new GitHubApiError("unknown", `Failed to parse response: ${message}`);
+			const details = error instanceof Error ? error.message : undefined;
+			throw new GitHubApiError("unknown", "Failed to parse API response", undefined, details);
 		}
 	}
 
+	// Partial error (data + errors 同時) も安全側に倒して reject する。
+	// 部分的に有効なデータがあっても、整合性が保証できないため一律エラー扱い。
 	private checkGraphQLErrors(body: GraphQLResponse): void {
 		if (body.errors && body.errors.length > 0) {
 			const details = body.errors.map((e) => e.message).join("; ");
