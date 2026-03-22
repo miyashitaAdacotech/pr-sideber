@@ -39,13 +39,22 @@ for tool in cargo-machete cargo-audit wasm-pack; do
   fi
 done
 
-# Node.js 依存のインストール
+# Node.js 依存のインストール (node_modules が最新ならスキップ)
 cd "$PROJECT_ROOT"
-echo "[session-start] Installing Node.js dependencies..."
-pnpm install --frozen-lockfile
+if [ ! -d "node_modules" ] || [ "pnpm-lock.yaml" -nt "node_modules/.modules.yaml" ]; then
+  echo "[session-start] Installing Node.js dependencies..."
+  pnpm install --frozen-lockfile
+else
+  echo "[session-start] Node.js dependencies up to date, skipping"
+fi
 
-# WASM ビルド成果物の生成 (pkg/ は .gitignore で除外されているため毎回必要)
-echo "[session-start] Building WASM..."
-(cd "$PROJECT_ROOT/rust-core/crates/adapter-wasm" && wasm-pack build --target web --dev)
+# WASM ビルド成果物の生成 (pkg/ がなければビルド、あればスキップ)
+WASM_PKG="$PROJECT_ROOT/rust-core/crates/adapter-wasm/pkg"
+if [ ! -d "$WASM_PKG" ] || [ ! -f "$WASM_PKG/adapter_wasm.js" ]; then
+  echo "[session-start] Building WASM..."
+  (cd "$PROJECT_ROOT/rust-core/crates/adapter-wasm" && wasm-pack build --target web --dev)
+else
+  echo "[session-start] WASM build artifacts exist, skipping"
+fi
 
 echo "[session-start] Setup complete!"
