@@ -32,10 +32,7 @@ mod tests {
             field: "title".to_string(),
             reason: "must not be empty".to_string(),
         };
-        assert_eq!(
-            err.to_string(),
-            "invalid field 'title': must not be empty"
-        );
+        assert_eq!(err.to_string(), "invalid field 'title': must not be empty");
     }
 
     #[test]

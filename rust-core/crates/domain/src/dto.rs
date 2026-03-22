@@ -61,8 +61,7 @@ mod tests {
     fn pr_item_dto_serde_roundtrip() {
         let original = make_pr_item();
         let json = serde_json::to_string(&original).expect("serialize should succeed");
-        let restored: PrItemDto =
-            serde_json::from_str(&json).expect("deserialize should succeed");
+        let restored: PrItemDto = serde_json::from_str(&json).expect("deserialize should succeed");
         assert_eq!(original, restored);
     }
 
@@ -84,8 +83,7 @@ mod tests {
             total_count: 0,
         };
         let json = serde_json::to_string(&list).expect("serialize should succeed");
-        let restored: PrListDto =
-            serde_json::from_str(&json).expect("deserialize should succeed");
+        let restored: PrListDto = serde_json::from_str(&json).expect("deserialize should succeed");
         assert_eq!(list, restored);
         assert_eq!(restored.items.len(), 0);
         assert_eq!(restored.total_count, 0);
@@ -105,8 +103,7 @@ mod tests {
             total_count: 3,
         };
         let json = serde_json::to_string(&list).expect("serialize should succeed");
-        let restored: PrListDto =
-            serde_json::from_str(&json).expect("deserialize should succeed");
+        let restored: PrListDto = serde_json::from_str(&json).expect("deserialize should succeed");
         assert_eq!(list, restored);
         assert_eq!(restored.items.len(), 3);
         assert_eq!(restored.total_count, 3);
