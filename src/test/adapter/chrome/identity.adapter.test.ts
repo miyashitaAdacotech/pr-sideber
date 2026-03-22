@@ -386,6 +386,244 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 			const savedToken = mockStorage.set.mock.calls[0][1] as Record<string, unknown>;
 			expect(savedToken.refreshToken).toBeUndefined();
 		});
+
+		describe("error_description のサニタイズ", () => {
+			/** エラーメッセージから "Token exchange failed: " プレフィックスを除いた description 部分を取得する */
+			function extractDescription(authError: AuthError): string {
+				return authError.message.replace("Token exchange failed: ", "");
+			}
+
+			it("長すぎる error_description を切り詰める (600文字 → 500文字)", async () => {
+				const longDescription = "a".repeat(600);
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: longDescription,
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const description = extractDescription(error as AuthError);
+				expect(description).toHaveLength(500);
+			});
+
+			it("501文字の error_description を500文字に切り詰める", async () => {
+				const description501 = "b".repeat(501);
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: description501,
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const description = extractDescription(error as AuthError);
+				expect(description).toHaveLength(500);
+			});
+
+			it("500文字ちょうどの error_description は切り詰められない", async () => {
+				const description500 = "c".repeat(500);
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: description500,
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const description = extractDescription(error as AuthError);
+				expect(description).toHaveLength(500);
+			});
+
+			it("HTML タグを除去する (<script>)", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: "<script>alert('xss')</script>",
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).not.toContain("<script>");
+				expect(authError.message).not.toContain("</script>");
+				expect(authError.message).toContain("alert('xss')");
+			});
+
+			it("HTML タグを除去する (<img onerror>)", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: '<img onerror="alert(1)">payload',
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).not.toContain("<img");
+				expect(authError.message).not.toContain("onerror");
+				expect(authError.message).toContain("payload");
+			});
+
+			it("制御文字を除去する (タブ・LF は許容、CR は除去)", async () => {
+				const descriptionWithControlChars = `error${String.fromCharCode(0)}${String.fromCharCode(1)}msg`;
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: descriptionWithControlChars,
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).toContain("errormsg");
+				// 制御文字 (U+0000 ~ U+001F) のうち、タブ(0x09)・LF(0x0A) のみ許容する
+				const hasProhibitedControlChars = [...authError.message].some((ch) => {
+					const code = ch.charCodeAt(0);
+					return code <= 0x1f && code !== 0x09 && code !== 0x0a;
+				});
+				expect(hasProhibitedControlChars).toBe(false);
+			});
+
+			it("タブ・LF は保持される", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: "line1\tvalue\nline2",
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const description = extractDescription(error as AuthError);
+				expect(description).toContain("\t");
+				expect(description).toContain("\n");
+				expect(description).toBe("line1\tvalue\nline2");
+			});
+
+			it("error_description なしで error フォールバック", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "custom_err",
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).toContain("custom_err");
+			});
+
+			it("error_description が空文字の場合は error フィールドにフォールバック", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "fallback_error",
+						error_description: "",
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).toContain("fallback_error");
+			});
+
+			it("error_description が null の場合は error フィールドにフォールバック", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "null_desc_error",
+						error_description: null,
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).toContain("null_desc_error");
+			});
+
+			it("error_description が数値の場合は error フィールドにフォールバック", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "numeric_desc_error",
+						error_description: 12345,
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).toContain("numeric_desc_error");
+			});
+
+			it("正常な description はそのまま通る", async () => {
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: "Something went wrong",
+					}),
+				});
+
+				const error = await adapter
+					.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode)
+					.catch((e: unknown) => e);
+
+				expect(error).toBeInstanceOf(AuthError);
+				const authError = error as AuthError;
+				expect(authError.message).toContain("Something went wrong");
+			});
+		});
 	});
 
 	describe("getToken", () => {

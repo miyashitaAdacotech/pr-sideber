@@ -106,11 +106,15 @@ export class ChromeIdentityAdapter implements AuthPort {
 					return { status: "denied" };
 				default: {
 					const raw =
-						typeof data.error_description === "string" ? data.error_description : data.error;
-					const description =
-						typeof raw === "string" && raw.length > ERROR_DESCRIPTION_MAX_LENGTH
-							? raw.slice(0, ERROR_DESCRIPTION_MAX_LENGTH)
-							: raw;
+						typeof data.error_description === "string" && data.error_description.length > 0
+							? data.error_description
+							: data.error;
+					const description = this.sanitizeOAuthErrorMessage(
+						typeof raw === "string" ? raw : String(raw),
+					);
+					if (import.meta.env.DEV) {
+						console.warn("[identity.adapter] OAuth error_description:", description);
+					}
 					throw new AuthError("token_exchange_failed", `Token exchange failed: ${description}`);
 				}
 			}
@@ -199,5 +203,17 @@ export class ChromeIdentityAdapter implements AuthPort {
 			...(typeof data.refresh_token === "string" ? { refreshToken: data.refresh_token } : {}),
 		};
 		return token;
+	}
+
+	/** HTML タグ・制御文字を除去し、長さを制限する */
+	private sanitizeOAuthErrorMessage(raw: string): string {
+		const noHtml = raw.replace(/<[^>]*>/g, "");
+		// 制御文字のうち タブ(0x09)・LF(0x0A) のみ許容する
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: 制御文字除去が目的のため意図的に使用
+		const noControl = noHtml.replace(/[\x00-\x08\x0B-\x1F]/g, "");
+		const trimmed = noControl.trim();
+		return trimmed.length > ERROR_DESCRIPTION_MAX_LENGTH
+			? trimmed.slice(0, ERROR_DESCRIPTION_MAX_LENGTH)
+			: trimmed;
 	}
 }
