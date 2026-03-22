@@ -468,6 +468,38 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 				const authError = error as AuthError;
 				expect(authError.message).toBe("Token exchange failed");
 			});
+
+			it("未知エラーの console.warn には error_description が含まれない", async () => {
+				vi.stubEnv("DEV", true);
+
+				const errorDescription = "Sensitive internal details about the failure";
+				globalThis.fetch = vi.fn().mockResolvedValue({
+					ok: true,
+					json: async () => ({
+						error: "unknown_error",
+						error_description: errorDescription,
+					}),
+				});
+
+				const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+				try {
+					await adapter.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode);
+				} catch {
+					// AuthError が throw されるのは期待通り
+				}
+
+				// DEV モードでは console.warn が必ず呼ばれることを確認
+				expect(warnSpy).toHaveBeenCalled();
+
+				// console.warn の引数に error_description の生の値が含まれないこと
+				for (const call of warnSpy.mock.calls) {
+					const joined = call.map((arg: unknown) => String(arg)).join(" ");
+					expect(joined).not.toContain(errorDescription);
+				}
+
+				warnSpy.mockRestore();
+			});
 		});
 	});
 
