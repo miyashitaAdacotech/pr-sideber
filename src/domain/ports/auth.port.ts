@@ -1,4 +1,4 @@
-import type { AuthToken, DeviceCodeResponse, PollResult } from "../../shared/types/auth";
+import type { AuthToken, DeviceCodeResponse, PollResult } from "../types/auth";
 
 export interface AuthPort {
 	getToken(): Promise<AuthToken | null>;

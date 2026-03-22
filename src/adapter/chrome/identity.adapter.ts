@@ -18,10 +18,20 @@ const DEVICE_CODE_MAX_LENGTH = 256;
 const ERROR_DESCRIPTION_MAX_LENGTH = 500;
 
 export class ChromeIdentityAdapter implements AuthPort {
+	private cachedAuthenticated: boolean | null = null;
+
 	constructor(
 		private readonly storage: StoragePort,
 		private readonly config: OAuthConfig,
-	) {}
+	) {
+		chrome.storage.onChanged.addListener((changes, areaName) => {
+			if (areaName !== "local") return;
+			if (TOKEN_STORAGE_KEY in changes) {
+				const change = changes[TOKEN_STORAGE_KEY];
+				this.cachedAuthenticated = change.newValue !== undefined;
+			}
+		});
+	}
 
 	async requestDeviceCode(): Promise<DeviceCodeResponse> {
 		const body = new URLSearchParams({
@@ -112,6 +122,7 @@ export class ChromeIdentityAdapter implements AuthPort {
 
 		const token = this.validateTokenData(data);
 		await this.storage.set(TOKEN_STORAGE_KEY, token);
+		this.cachedAuthenticated = true;
 		return { status: "success", token };
 	}
 
@@ -121,16 +132,23 @@ export class ChromeIdentityAdapter implements AuthPort {
 
 	async clearToken(): Promise<void> {
 		await this.storage.remove(TOKEN_STORAGE_KEY);
+		this.cachedAuthenticated = false;
 	}
 
 	async isAuthenticated(): Promise<boolean> {
+		if (this.cachedAuthenticated !== null) {
+			return this.cachedAuthenticated;
+		}
 		const token = await this.getToken();
 		if (token === null) {
+			this.cachedAuthenticated = false;
 			return false;
 		}
 		if (token.expiresAt !== undefined && Date.now() >= token.expiresAt) {
+			this.cachedAuthenticated = false;
 			return false;
 		}
+		this.cachedAuthenticated = true;
 		return true;
 	}
 

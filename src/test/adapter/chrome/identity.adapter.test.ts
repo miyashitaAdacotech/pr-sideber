@@ -413,5 +413,160 @@ describe("ChromeIdentityAdapter — Device Flow", () => {
 
 			vi.useRealTimers();
 		});
+
+		it("should use cached result on second call without hitting storage again", async () => {
+			mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+
+			await adapter.isAuthenticated();
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should return true from cache after successful pollForToken without hitting storage", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					access_token: MOCK_TOKEN.accessToken,
+					token_type: MOCK_TOKEN.tokenType,
+					scope: MOCK_TOKEN.scope,
+				}),
+			});
+
+			await adapter.pollForToken(MOCK_DEVICE_CODE_RESPONSE.deviceCode);
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should return false from cache after clearToken without hitting storage", async () => {
+			mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+			await adapter.isAuthenticated();
+
+			await adapter.clearToken();
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(false);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should update cache to false when storage.onChanged fires with token key removed", async () => {
+			mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+			await adapter.isAuthenticated();
+
+			const chromeMock = getChromeMock();
+			expect(chromeMock.storage.onChanged.addListener).toHaveBeenCalledTimes(1);
+			const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0] as (
+				changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+				areaName: string,
+			) => void;
+
+			listener({ github_auth_token: { oldValue: MOCK_TOKEN } }, "local");
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(false);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should update cache to true when storage.onChanged fires with token key set", async () => {
+			mockStorage.get.mockResolvedValue(null);
+			await adapter.isAuthenticated();
+
+			const chromeMock = getChromeMock();
+			expect(chromeMock.storage.onChanged.addListener).toHaveBeenCalledTimes(1);
+			const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0] as (
+				changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+				areaName: string,
+			) => void;
+
+			listener({ github_auth_token: { newValue: MOCK_TOKEN } }, "local");
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should not update cache when storage.onChanged fires for non-local area", async () => {
+			mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+			await adapter.isAuthenticated();
+
+			const chromeMock = getChromeMock();
+			expect(chromeMock.storage.onChanged.addListener).toHaveBeenCalledTimes(1);
+			const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0] as (
+				changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+				areaName: string,
+			) => void;
+
+			// "sync" area で token 削除の変更を発火 — キャッシュは変わらないはず
+			listener({ github_auth_token: { oldValue: MOCK_TOKEN } }, "sync");
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should not update cache when unrelated key changes in storage.onChanged", async () => {
+			mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+			await adapter.isAuthenticated();
+
+			const chromeMock = getChromeMock();
+			expect(chromeMock.storage.onChanged.addListener).toHaveBeenCalledTimes(1);
+			const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0] as (
+				changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+				areaName: string,
+			) => void;
+
+			// 無関係なキーの変更 — キャッシュは変わらないはず
+			listener({ some_other_key: { newValue: "something" } }, "local");
+			mockStorage.get.mockClear();
+			mockStorage.get.mockImplementation(() => {
+				throw new Error("storage.get should not be called when cache is populated");
+			});
+
+			const result = await adapter.isAuthenticated();
+
+			expect(result).toBe(true);
+			expect(mockStorage.get).not.toHaveBeenCalled();
+		});
+
+		it("should call storage.get on first invocation when cache is uninitialized", async () => {
+			mockStorage.get.mockResolvedValue(MOCK_TOKEN);
+
+			await adapter.isAuthenticated();
+
+			expect(mockStorage.get).toHaveBeenCalledWith("github_auth_token", isAuthToken);
+		});
 	});
 });

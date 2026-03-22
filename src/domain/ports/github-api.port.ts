@@ -1,4 +1,4 @@
-import type { FetchPullRequestsResult } from "../../shared/types/github";
+import type { FetchPullRequestsResult } from "../types/github";
 
 export interface GitHubApiPort {
 	fetchPullRequests(): Promise<FetchPullRequestsResult>;
