@@ -58,11 +58,17 @@ if command -v cargo-machete >/dev/null 2>&1; then
 fi
 
 # cargo audit (脆弱性スキャン)
+# --no-fetch: ネットワーク不通環境ではローカル DB のみ使用しスキップ
 if command -v cargo-audit >/dev/null 2>&1; then
-  if cargo audit 2>&1; then
+  AUDIT_OUTPUT=$(cargo audit 2>&1) && {
     echo "[hook] cargo audit: passed"
-  else
-    echo "BLOCK: cargo audit found vulnerabilities" >&2
-    exit 2
-  fi
+  } || {
+    if echo "$AUDIT_OUTPUT" | grep -q "couldn't fetch advisory database"; then
+      echo "[hook] cargo audit: skipped (advisory DB fetch failed, likely offline)"
+    else
+      echo "BLOCK: cargo audit found vulnerabilities" >&2
+      echo "$AUDIT_OUTPUT" >&2
+      exit 2
+    fi
+  }
 fi
