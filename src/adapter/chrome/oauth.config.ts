@@ -1,3 +1,5 @@
+// Security: client_id は OAuth Device Flow では公開情報。
+// client_secret は不要であり、バンドルに含めてはならない。
 export type OAuthConfig = {
 	readonly clientId: string;
 	readonly deviceCodeEndpoint: string;
