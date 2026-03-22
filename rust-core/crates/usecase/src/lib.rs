@@ -1,3 +1,8 @@
+pub mod classify;
+pub mod determine;
+pub mod process;
+pub mod sort;
+
 use domain::Greeting;
 
 pub fn create_greeting(name: &str) -> Greeting {
