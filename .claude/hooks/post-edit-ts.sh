@@ -12,9 +12,9 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# TS/Svelte ファイル以外はスキップ
+# TS/Svelte/JSON ファイル以外はスキップ
 case "$FILE_PATH" in
-  *.ts|*.svelte) ;;
+  *.ts|*.svelte|*.json) ;;
   *) exit 0 ;;
 esac
 
@@ -59,10 +59,15 @@ case "$FILE_PATH" in
     ;;
 esac
 
-# svelte-check (型チェック)
-if pnpm check 2>&1; then
-  echo "[hook] svelte-check: passed"
-else
-  echo "BLOCK: svelte-check failed" >&2
-  exit 2
-fi
+# svelte-check (型チェック) — JSON ファイルはスキップ
+case "$FILE_PATH" in
+  *.json) ;;
+  *)
+    if pnpm check 2>&1; then
+      echo "[hook] svelte-check: passed"
+    else
+      echo "BLOCK: svelte-check failed" >&2
+      exit 2
+    fi
+    ;;
+esac
