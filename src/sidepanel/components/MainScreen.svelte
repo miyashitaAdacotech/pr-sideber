@@ -1,25 +1,30 @@
 <script lang="ts">
 	import { untrack } from "svelte";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
+	import type { CachedPrData } from "../../shared/types/cache";
+	import { formatRelativeTime } from "../../shared/utils/time";
 	import LogoutButton from "./LogoutButton.svelte";
 	import PrSection from "./PrSection.svelte";
 
 	type Props = {
 		onLogout: () => Promise<void>;
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
+		getCachedPrs: () => Promise<CachedPrData | null>;
 	};
 
-	const { onLogout, fetchPrs }: Props = $props();
+	const { onLogout, fetchPrs, getCachedPrs }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let data = $state<(ProcessedPrsResult & { hasMore: boolean }) | null>(null);
+	let lastUpdatedAt = $state<string | undefined>(undefined);
 
 	async function loadPrs(): Promise<void> {
 		loading = true;
 		error = null;
 		try {
 			data = await fetchPrs();
+			lastUpdatedAt = new Date().toISOString();
 		} catch (e: unknown) {
 			error = e instanceof Error ? e.message : "Unknown error";
 		} finally {
@@ -31,16 +36,31 @@
 		let cancelled = false;
 
 		untrack(async () => {
-			loading = true;
-			error = null;
+			// まずキャッシュから表示を試みる
+			try {
+				const cached = await getCachedPrs();
+				if (!cancelled && cached) {
+					data = cached.data;
+					lastUpdatedAt = cached.lastUpdatedAt;
+					loading = false;
+				}
+			} catch {
+				// キャッシュ読み込み失敗は無視して最新取得に進む
+			}
+
+			// バックグラウンドで最新データを取得
 			try {
 				const result = await fetchPrs();
 				if (!cancelled) {
 					data = result;
+					lastUpdatedAt = new Date().toISOString();
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
-					error = e instanceof Error ? e.message : "Unknown error";
+					// キャッシュ表示済みならエラーは上書きしない
+					if (!data) {
+						error = e instanceof Error ? e.message : "Unknown error";
+					}
 				}
 			} finally {
 				if (!cancelled) {
@@ -57,13 +77,33 @@
 
 <main>
 	<header>
-		<h1>PR Sidebar</h1>
-		<LogoutButton {onLogout} />
+		<div class="header-left">
+			<h1>PR Sidebar</h1>
+			<button
+				class="reload-button"
+				class:spinning={loading}
+				onclick={loadPrs}
+				disabled={loading}
+				aria-label="Reload"
+			>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+					<path d="M8 3a5 5 0 0 0-4.546 2.914.5.5 0 1 1-.908-.428A6 6 0 1 1 2.25 9.665a.5.5 0 1 1 .958.286A5 5 0 1 0 8 3z"/>
+					<path d="M8 1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V2a.5.5 0 0 1 .5-.5z"/>
+					<path d="M5.146 3.854a.5.5 0 0 1 0-.708l2.5-2.5a.5.5 0 0 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0z"/>
+				</svg>
+			</button>
+		</div>
+		<div class="header-right">
+			{#if lastUpdatedAt}
+				<span class="last-updated">{formatRelativeTime(lastUpdatedAt)}</span>
+			{/if}
+			<LogoutButton {onLogout} />
+		</div>
 	</header>
 
-	{#if loading}
+	{#if loading && !data}
 		<p>Loading...</p>
-	{:else if error}
+	{:else if error && !data}
 		<div class="error-container">
 			<p class="error">{error}</p>
 			<button class="retry-button" onclick={loadPrs}>再試行</button>
@@ -81,8 +121,63 @@
 		align-items: center;
 	}
 
+	.header-left {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.header-right {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
 	main {
 		padding: 1rem;
+	}
+
+	.reload-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		background: none;
+		border: 1px solid #d1d5db;
+		border-radius: 4px;
+		cursor: pointer;
+		color: #586069;
+		transition: color 0.15s;
+	}
+
+	.reload-button:hover:not(:disabled) {
+		color: #0366d6;
+		border-color: #0366d6;
+	}
+
+	.reload-button:disabled {
+		cursor: not-allowed;
+		opacity: 0.5;
+	}
+
+	.reload-button.spinning svg {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.last-updated {
+		font-size: 0.75rem;
+		color: #6a737d;
 	}
 
 	.error-container {

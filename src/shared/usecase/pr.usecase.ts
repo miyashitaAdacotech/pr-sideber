@@ -8,7 +8,7 @@ import { PR_CACHE_KEY, isCachedPrData } from "../types/cache";
 export function createPrUseCase(
 	sendMessage: SendMessage,
 	prProcessor: PrProcessorPort,
-	_storage?: StoragePort,
+	storage?: StoragePort,
 ) {
 	async function fetchPrs(login: string): Promise<ProcessedPrsResult & { hasMore: boolean }> {
 		const response = await sendMessage("FETCH_PRS");
@@ -17,11 +17,27 @@ export function createPrUseCase(
 		}
 		const raw: FetchRawPullRequestsResult = response.data;
 		const processed = prProcessor.processPullRequests(raw.rawJson, login);
-		return { ...processed, hasMore: raw.hasMore };
+		const result = { ...processed, hasMore: raw.hasMore };
+
+		if (storage) {
+			try {
+				await storage.set(PR_CACHE_KEY, {
+					data: result,
+					lastUpdatedAt: new Date().toISOString(),
+				});
+			} catch {
+				// キャッシュ保存失敗は結果の返却をブロックしない
+			}
+		}
+
+		return result;
 	}
 
 	async function getCachedPrs(): Promise<CachedPrData | null> {
-		throw new Error("Not implemented");
+		if (!storage) {
+			return null;
+		}
+		return storage.get(PR_CACHE_KEY, isCachedPrData);
 	}
 
 	return { fetchPrs, getCachedPrs };

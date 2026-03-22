@@ -7,6 +7,30 @@ export type CachedPrData = {
 	readonly lastUpdatedAt: string;
 };
 
-export function isCachedPrData(_value: unknown): _value is CachedPrData {
-	throw new Error("Not implemented");
+export function isCachedPrData(value: unknown): value is CachedPrData {
+	if (value === null || value === undefined || typeof value !== "object") {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	if (typeof obj.lastUpdatedAt !== "string") {
+		return false;
+	}
+	if (obj.data === null || obj.data === undefined || typeof obj.data !== "object") {
+		return false;
+	}
+	const data = obj.data as Record<string, unknown>;
+	if (typeof data.hasMore !== "boolean") {
+		return false;
+	}
+	if (data.myPrs === null || data.myPrs === undefined || typeof data.myPrs !== "object") {
+		return false;
+	}
+	if (
+		data.reviewRequests === null ||
+		data.reviewRequests === undefined ||
+		typeof data.reviewRequests !== "object"
+	) {
+		return false;
+	}
+	return true;
 }

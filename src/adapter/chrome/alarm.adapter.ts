@@ -1,15 +1,21 @@
 import type { AlarmPort } from "../../domain/ports/alarm.port";
 
 export class ChromeAlarmAdapter implements AlarmPort {
-	create(_name: string, _periodInMinutes: number): void {
-		throw new Error("Not implemented");
+	create(name: string, periodInMinutes: number): void {
+		chrome.alarms.create(name, { periodInMinutes });
 	}
 
-	clear(_name: string): Promise<boolean> {
-		throw new Error("Not implemented");
+	clear(name: string): Promise<boolean> {
+		return chrome.alarms.clear(name);
 	}
 
-	onAlarm(_callback: (name: string) => void): () => void {
-		throw new Error("Not implemented");
+	onAlarm(callback: (name: string) => void): () => void {
+		const listener = (alarm: chrome.alarms.Alarm) => {
+			callback(alarm.name);
+		};
+		chrome.alarms.onAlarm.addListener(listener);
+		return () => {
+			chrome.alarms.onAlarm.removeListener(listener);
+		};
 	}
 }
