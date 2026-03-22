@@ -2,6 +2,9 @@
 	import type { PrItemDto } from "../../domain/ports/pr-processor.port";
 	import { formatRelativeTime } from "../../shared/utils/time";
 	import { safeUrl } from "../../shared/utils/url";
+	import ApprovalBadge from "./ApprovalBadge.svelte";
+	import CiBadge from "./CiBadge.svelte";
+	import DraftBadge from "./DraftBadge.svelte";
 
 	type Props = {
 		pr: PrItemDto;
@@ -17,6 +20,13 @@
 	<div class="pr-meta">
 		<span class="pr-repo">{pr.repository}</span>
 		<span class="pr-updated">{formatRelativeTime(pr.updatedAt)}</span>
+	</div>
+	<div class="pr-badges">
+		<DraftBadge isDraft={pr.isDraft} />
+		{#if !pr.isDraft}
+			<ApprovalBadge approvalStatus={pr.approvalStatus} />
+			<CiBadge ciStatus={pr.ciStatus} />
+		{/if}
 	</div>
 </div>
 
@@ -44,5 +54,12 @@
 		font-size: 0.75rem;
 		color: #586069;
 		margin-top: 0.25rem;
+	}
+
+	.pr-badges {
+		display: flex;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+		flex-wrap: wrap;
 	}
 </style>
