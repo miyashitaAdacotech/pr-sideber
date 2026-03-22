@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitHubGraphQLClient } from "../../../adapter/github/graphql-client";
 import type { DelayFn } from "../../../adapter/github/retry";
 import type { GitHubApiPort } from "../../../domain/ports/github-api.port";
-import type { ReviewDecision, StatusState } from "../../../domain/types/github";
 import { GitHubApiError } from "../../../shared/types/errors";
 
 const noDelay: DelayFn = () => Promise.resolve();
@@ -10,98 +9,50 @@ const noDelay: DelayFn = () => Promise.resolve();
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 const TEST_TOKEN = "gho_test_access_token_12345";
 
-type TestEdge = {
-	node: {
-		title: string;
-		url: string;
-		number: number;
-		isDraft: boolean;
-		reviewDecision: ReviewDecision;
-		commits: {
-			nodes: Array<{
-				commit: {
-					statusCheckRollup: { state: StatusState } | null;
-				};
-			}>;
+/**
+ * テスト用の GraphQL レスポンス JSON 文字列を生成する。
+ * プロダクションコードが response.text() で raw JSON を取得する想定。
+ */
+function createRawResponse(
+	overrides: {
+		myPrsEdges?: ReadonlyArray<Record<string, unknown>>;
+		reviewRequestedEdges?: ReadonlyArray<Record<string, unknown>>;
+		myPrsHasNextPage?: boolean;
+		reviewRequestedHasNextPage?: boolean;
+		myPrsNull?: boolean;
+		reviewRequestedNull?: boolean;
+	} = {},
+): string {
+	const data: Record<string, unknown> = {};
+
+	if (overrides.myPrsNull) {
+		data.myPrs = null;
+	} else {
+		data.myPrs = {
+			edges: overrides.myPrsEdges ?? [],
+			pageInfo: { hasNextPage: overrides.myPrsHasNextPage ?? false },
 		};
-		repository: { nameWithOwner: string };
-		createdAt: string;
-		updatedAt: string;
-	} | null;
-};
+	}
 
-type TestResponse = {
-	data?: {
-		myPrs: {
-			edges: TestEdge[];
-			pageInfo: { hasNextPage: boolean };
-		} | null;
-		reviewRequested: {
-			edges: TestEdge[];
-			pageInfo: { hasNextPage: boolean };
-		} | null;
-	};
-	errors?: Array<{ message: string }>;
-};
+	if (overrides.reviewRequestedNull) {
+		data.reviewRequested = null;
+	} else {
+		data.reviewRequested = {
+			edges: overrides.reviewRequestedEdges ?? [],
+			pageInfo: { hasNextPage: overrides.reviewRequestedHasNextPage ?? false },
+		};
+	}
 
-function createSuccessResponse(
-	myPrsNodes: TestEdge[] = [],
-	reviewRequestedNodes: TestEdge[] = [],
-	options: { myPrsHasNextPage?: boolean; reviewRequestedHasNextPage?: boolean } = {},
-): TestResponse {
-	return {
-		data: {
-			myPrs: {
-				edges: myPrsNodes,
-				pageInfo: { hasNextPage: options.myPrsHasNextPage ?? false },
-			},
-			reviewRequested: {
-				edges: reviewRequestedNodes,
-				pageInfo: { hasNextPage: options.reviewRequestedHasNextPage ?? false },
-			},
-		},
-	};
+	return JSON.stringify({ data });
 }
 
-function createPrEdge(
-	overrides: {
-		title?: string;
-		url?: string;
-		number?: number;
-		isDraft?: boolean;
-		reviewDecision?: ReviewDecision;
-		statusState?: StatusState | null;
-		nameWithOwner?: string;
-		createdAt?: string;
-		updatedAt?: string;
-	} = {},
-): TestEdge {
+function createMockFetchResponse(rawJson: string) {
 	return {
-		node: {
-			title: overrides.title ?? "Test PR",
-			url: overrides.url ?? "https://github.com/owner/repo/pull/1",
-			number: overrides.number ?? 1,
-			isDraft: overrides.isDraft ?? false,
-			reviewDecision: overrides.reviewDecision ?? null,
-			commits: {
-				nodes:
-					overrides.statusState === undefined
-						? []
-						: [
-								{
-									commit: {
-										statusCheckRollup:
-											overrides.statusState === null ? null : { state: overrides.statusState },
-									},
-								},
-							],
-			},
-			repository: {
-				nameWithOwner: overrides.nameWithOwner ?? "owner/repo",
-			},
-			createdAt: overrides.createdAt ?? "2026-01-01T00:00:00Z",
-			updatedAt: overrides.updatedAt ?? "2026-01-02T00:00:00Z",
-		},
+		ok: true,
+		status: 200,
+		headers: new Headers(),
+		text: async () => rawJson,
+		json: async () => JSON.parse(rawJson),
 	};
 }
 
@@ -122,10 +73,7 @@ describe("GitHubGraphQLClient", () => {
 
 	describe("fetchPullRequests - 正常系", () => {
 		it("should include Authorization header with Bearer token", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
 
 			await client.fetchPullRequests();
 
@@ -139,10 +87,7 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should POST to GitHub GraphQL endpoint", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
 
 			await client.fetchPullRequests();
 
@@ -152,130 +97,53 @@ describe("GitHubGraphQLClient", () => {
 			expect(options.method).toBe("POST");
 		});
 
-		it("should parse myPrs and reviewRequested from response", async () => {
-			const myPrEdge = createPrEdge({
-				title: "My PR",
-				number: 10,
-				nameWithOwner: "me/my-repo",
-			});
-			const reviewEdge = createPrEdge({
-				title: "Review PR",
-				number: 20,
-				nameWithOwner: "other/other-repo",
+		it("should return rawJson containing the GraphQL response JSON string", async () => {
+			const rawJson = createRawResponse({
+				myPrsEdges: [
+					{
+						node: {
+							id: "PR_1",
+							title: "My PR",
+							url: "https://github.com/owner/repo/pull/1",
+							number: 10,
+							isDraft: false,
+							reviewDecision: null,
+							author: { login: "me" },
+							additions: 10,
+							deletions: 5,
+							commits: { nodes: [] },
+							repository: { nameWithOwner: "me/my-repo" },
+							createdAt: "2026-01-01T00:00:00Z",
+							updatedAt: "2026-01-02T00:00:00Z",
+						},
+					},
+				],
 			});
 
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([myPrEdge], [reviewEdge]),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
 
 			const result = await client.fetchPullRequests();
 
-			expect(result.myPrs).toHaveLength(1);
-			expect(result.myPrs[0].title).toBe("My PR");
-			expect(result.myPrs[0].number).toBe(10);
-			expect(result.myPrs[0].repository.nameWithOwner).toBe("me/my-repo");
-
-			expect(result.reviewRequested).toHaveLength(1);
-			expect(result.reviewRequested[0].title).toBe("Review PR");
-			expect(result.reviewRequested[0].number).toBe(20);
+			expect(result.rawJson).toBe(rawJson);
 		});
 
-		it("should correctly map reviewDecision, isDraft, and commit status", async () => {
-			const edge = createPrEdge({
-				isDraft: true,
-				reviewDecision: "APPROVED",
-				statusState: "SUCCESS",
+		it("should set hasMore to false when both hasNextPage are false", async () => {
+			const rawJson = createRawResponse({
+				myPrsHasNextPage: false,
+				reviewRequestedHasNextPage: false,
 			});
 
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([edge]),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
 
 			const result = await client.fetchPullRequests();
 
-			expect(result.myPrs[0].isDraft).toBe(true);
-			expect(result.myPrs[0].reviewDecision).toBe("APPROVED");
-			expect(result.myPrs[0].commitStatusState).toBe("SUCCESS");
-		});
-
-		it("should return empty arrays when no results", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
-
-			const result = await client.fetchPullRequests();
-
-			expect(result.myPrs).toEqual([]);
-			expect(result.reviewRequested).toEqual([]);
 			expect(result.hasMore).toBe(false);
 		});
 
-		it("should handle PR with no CI status (statusCheckRollup is null)", async () => {
-			const edge = createPrEdge({ statusState: null });
-
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([edge]),
-			});
-
-			const result = await client.fetchPullRequests();
-
-			expect(result.myPrs[0].commitStatusState).toBeNull();
-		});
-
-		it("should handle PR with no commits nodes (empty array)", async () => {
-			const edge = createPrEdge();
-
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([edge]),
-			});
-
-			const result = await client.fetchPullRequests();
-
-			expect(result.myPrs[0].commitStatusState).toBeNull();
-		});
-
-		it("should filter out edges with null node", async () => {
-			const validEdge = createPrEdge({ title: "Valid PR" });
-			const nullNodeEdge: TestEdge = { node: null };
-
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([validEdge, nullNodeEdge]),
-			});
-
-			const result = await client.fetchPullRequests();
-
-			expect(result.myPrs).toHaveLength(1);
-			expect(result.myPrs[0].title).toBe("Valid PR");
-		});
-
-		it("should treat null myPrs/reviewRequested as empty arrays", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => ({
-					data: {
-						myPrs: null,
-						reviewRequested: null,
-					},
-				}),
-			});
-
-			const result = await client.fetchPullRequests();
-
-			expect(result.myPrs).toEqual([]);
-			expect(result.reviewRequested).toEqual([]);
-		});
-
 		it("should set hasMore to true when myPrs has next page", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([], [], { myPrsHasNextPage: true }),
-			});
+			const rawJson = createRawResponse({ myPrsHasNextPage: true });
+
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
 
 			const result = await client.fetchPullRequests();
 
@@ -283,24 +151,34 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should set hasMore to true when reviewRequested has next page", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse([], [], { reviewRequestedHasNextPage: true }),
-			});
+			const rawJson = createRawResponse({ reviewRequestedHasNextPage: true });
+
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
 
 			const result = await client.fetchPullRequests();
 
 			expect(result.hasMore).toBe(true);
 		});
 
-		it("should set hasMore to false when neither has next page", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+		it("should return rawJson and hasMore=false when myPrs is null", async () => {
+			const rawJson = createRawResponse({ myPrsNull: true });
+
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
 
 			const result = await client.fetchPullRequests();
 
+			expect(result.rawJson).toBe(rawJson);
+			expect(result.hasMore).toBe(false);
+		});
+
+		it("should return rawJson and hasMore=false when reviewRequested is null", async () => {
+			const rawJson = createRawResponse({ reviewRequestedNull: true });
+
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
+
+			const result = await client.fetchPullRequests();
+
+			expect(result.rawJson).toBe(rawJson);
 			expect(result.hasMore).toBe(false);
 		});
 	});
@@ -374,17 +252,17 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should throw GitHubApiError with 'graphql_error' and generic message when response has errors field", async () => {
+			const errorJson = JSON.stringify({
+				errors: [{ message: "Field 'foo' doesn't exist" }],
+			});
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
-				json: async () => ({
-					errors: [{ message: "Field 'foo' doesn't exist" }],
-				}),
+				text: async () => errorJson,
 			});
 
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("graphql_error");
-			// message は汎用文言で、詳細は details に格納
 			expect((error as GitHubApiError).message).toBe("GitHub API returned GraphQL errors");
 			expect((error as GitHubApiError).details).toContain("Field 'foo' doesn't exist");
 		});
@@ -392,16 +270,13 @@ describe("GitHubGraphQLClient", () => {
 		it("should throw GitHubApiError with 'unknown' and generic message on invalid JSON response", async () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
-				json: async () => {
-					throw new SyntaxError("Unexpected token < in JSON");
-				},
+				text: async () => "<html>Not JSON</html>",
 			});
 
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("unknown");
 			expect((error as GitHubApiError).message).toBe("Failed to parse API response");
-			expect((error as GitHubApiError).details).toBe("Unexpected token < in JSON");
 		});
 
 		it("should propagate error when getAccessToken rejects", async () => {
@@ -414,15 +289,16 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should throw GraphQL error when response has both data and errors", async () => {
+			const partialErrorJson = JSON.stringify({
+				data: {
+					myPrs: { edges: [], pageInfo: { hasNextPage: false } },
+					reviewRequested: { edges: [], pageInfo: { hasNextPage: false } },
+				},
+				errors: [{ message: "Partial error occurred" }],
+			});
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
-				json: async () => ({
-					data: {
-						myPrs: { edges: [], pageInfo: { hasNextPage: false } },
-						reviewRequested: { edges: [], pageInfo: { hasNextPage: false } },
-					},
-					errors: [{ message: "Partial error occurred" }],
-				}),
+				text: async () => partialErrorJson,
 			});
 
 			const error = await client.fetchPullRequests().catch((e: unknown) => e);
@@ -434,10 +310,7 @@ describe("GitHubGraphQLClient", () => {
 
 	describe("fetchPullRequests - 設計確認", () => {
 		it("should not include token in URL parameters", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
 
 			await client.fetchPullRequests();
 
@@ -448,10 +321,7 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should set Content-Type to application/json", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
 
 			await client.fetchPullRequests();
 
@@ -465,10 +335,7 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should use GraphQL fragment in query", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
 
 			await client.fetchPullRequests();
 
@@ -480,10 +347,7 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should request pageInfo in query", async () => {
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
 
 			await client.fetchPullRequests();
 
@@ -492,6 +356,51 @@ describe("GitHubGraphQLClient", () => {
 			const body = JSON.parse(options.body as string) as { query: string };
 			expect(body.query).toContain("pageInfo");
 			expect(body.query).toContain("hasNextPage");
+		});
+
+		it("should include 'id' field in GraphQL query", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
+
+			await client.fetchPullRequests();
+
+			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+			const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+			const body = JSON.parse(options.body as string) as { query: string };
+			expect(body.query).toMatch(/fragment PrFields[\s\S]*?\bid\b/);
+		});
+
+		it("should include 'author' field in GraphQL query", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
+
+			await client.fetchPullRequests();
+
+			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+			const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+			const body = JSON.parse(options.body as string) as { query: string };
+			expect(body.query).toMatch(/fragment PrFields[\s\S]*?\bauthor\b/);
+			expect(body.query).toContain("login");
+		});
+
+		it("should include 'additions' field in GraphQL query", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
+
+			await client.fetchPullRequests();
+
+			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+			const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+			const body = JSON.parse(options.body as string) as { query: string };
+			expect(body.query).toMatch(/fragment PrFields[\s\S]*?\badditions\b/);
+		});
+
+		it("should include 'deletions' field in GraphQL query", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(createRawResponse()));
+
+			await client.fetchPullRequests();
+
+			const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+			const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+			const body = JSON.parse(options.body as string) as { query: string };
+			expect(body.query).toMatch(/fragment PrFields[\s\S]*?\bdeletions\b/);
 		});
 	});
 
@@ -507,6 +416,7 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should retry on 5xx and succeed on 4th attempt", async () => {
+			const rawJson = createRawResponse();
 			const fetchMock = vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -527,16 +437,13 @@ describe("GitHubGraphQLClient", () => {
 					statusText: "Service Unavailable",
 					headers: new Headers(),
 				})
-				.mockResolvedValueOnce({
-					ok: true,
-					json: async () => createSuccessResponse(),
-				});
+				.mockResolvedValueOnce(createMockFetchResponse(rawJson));
 			globalThis.fetch = fetchMock;
 
 			const result = await retryClient.fetchPullRequests();
 
-			expect(result.myPrs).toEqual([]);
-			expect(result.reviewRequested).toEqual([]);
+			expect(result.rawJson).toBe(rawJson);
+			expect(result.hasMore).toBe(false);
 			expect(fetchMock).toHaveBeenCalledTimes(4);
 		});
 
@@ -557,18 +464,16 @@ describe("GitHubGraphQLClient", () => {
 		});
 
 		it("should retry on network_error and succeed on 2nd attempt", async () => {
+			const rawJson = createRawResponse();
 			const fetchMock = vi
 				.fn()
 				.mockRejectedValueOnce(new TypeError("Failed to fetch"))
-				.mockResolvedValueOnce({
-					ok: true,
-					json: async () => createSuccessResponse(),
-				});
+				.mockResolvedValueOnce(createMockFetchResponse(rawJson));
 			globalThis.fetch = fetchMock;
 
 			const result = await retryClient.fetchPullRequests();
 
-			expect(result.myPrs).toEqual([]);
+			expect(result.rawJson).toBe(rawJson);
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
 
@@ -617,7 +522,6 @@ describe("GitHubGraphQLClient", () => {
 
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("rate_limited");
-			// Retry-After なしなのでリトライしない → fetch 1回だけ
 			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -640,26 +544,23 @@ describe("GitHubGraphQLClient", () => {
 			expect(error).toBeInstanceOf(GitHubApiError);
 			const apiError = error as GitHubApiError;
 			expect(apiError.code).toBe("rate_limited");
-			// GREEN フェーズで GitHubApiError に retryAfter, rateLimitRemaining を追加予定
 			expect(apiError).toHaveProperty("retryAfter", 60);
 			expect(apiError).toHaveProperty("rateLimitRemaining", 0);
 		});
 
 		it("should work normally when rate limit headers are absent", async () => {
-			const client = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
-			globalThis.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => createSuccessResponse(),
-			});
+			const rawJson = createRawResponse();
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			globalThis.fetch = vi.fn().mockResolvedValue(createMockFetchResponse(rawJson));
 
-			const result = await client.fetchPullRequests();
+			const result = await noRetryClient.fetchPullRequests();
 
-			expect(result.myPrs).toEqual([]);
-			expect(result.reviewRequested).toEqual([]);
+			expect(result.rawJson).toBe(rawJson);
 			expect(result.hasMore).toBe(false);
 		});
 
 		it("should retry once on 429 with Retry-After and succeed", async () => {
+			const rawJson = createRawResponse();
 			const fetchMock = vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -673,16 +574,12 @@ describe("GitHubGraphQLClient", () => {
 						"X-RateLimit-Limit": "5000",
 					}),
 				})
-				.mockResolvedValueOnce({
-					ok: true,
-					json: async () => createSuccessResponse(),
-				});
+				.mockResolvedValueOnce(createMockFetchResponse(rawJson));
 			globalThis.fetch = fetchMock;
 
 			const result = await retryClient.fetchPullRequests();
 
-			expect(result.myPrs).toEqual([]);
-			// 429 + Retry-After ありなので 1回リトライ → fetch 2回
+			expect(result.rawJson).toBe(rawJson);
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
 
@@ -703,7 +600,6 @@ describe("GitHubGraphQLClient", () => {
 
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("rate_limited");
-			// Retry-After なし → リトライしない → fetch 1回
 			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -725,7 +621,6 @@ describe("GitHubGraphQLClient", () => {
 
 			expect(error).toBeInstanceOf(GitHubApiError);
 			expect((error as GitHubApiError).code).toBe("rate_limited");
-			// rate limit リトライは最大1回 → 初回 + リトライ1回 = fetch 2回
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
 
@@ -745,8 +640,10 @@ describe("GitHubGraphQLClient", () => {
 			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
 
 			expect(error).toBeInstanceOf(GitHubApiError);
-			// 403 + X-RateLimit-Remaining: 0 は rate_limited として扱う
-			expect((error as GitHubApiError).code).toBe("rate_limited");
+			const apiError = error as GitHubApiError;
+			expect(apiError.code).toBe("rate_limited");
+			expect(apiError.statusCode).toBe(403);
+			expect(apiError.rateLimitRemaining).toBe(0);
 		});
 
 		it("should treat 403 with X-RateLimit-Remaining > 0 as forbidden", async () => {
@@ -765,12 +662,31 @@ describe("GitHubGraphQLClient", () => {
 			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
 
 			expect(error).toBeInstanceOf(GitHubApiError);
-			// X-RateLimit-Remaining: 100 → 通常の forbidden
 			expect((error as GitHubApiError).code).toBe("forbidden");
 		});
 
 		it("should retry on 429 with Retry-After: 5 and return success response on 2nd attempt", async () => {
-			const prEdge = createPrEdge({ title: "Recovered PR", number: 42 });
+			const rawJson = createRawResponse({
+				myPrsEdges: [
+					{
+						node: {
+							id: "PR_42",
+							title: "Recovered PR",
+							url: "https://github.com/owner/repo/pull/42",
+							number: 42,
+							isDraft: false,
+							reviewDecision: null,
+							author: { login: "me" },
+							additions: 1,
+							deletions: 0,
+							commits: { nodes: [] },
+							repository: { nameWithOwner: "owner/repo" },
+							createdAt: "2026-01-01T00:00:00Z",
+							updatedAt: "2026-01-02T00:00:00Z",
+						},
+					},
+				],
+			});
 			const fetchMock = vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -784,42 +700,14 @@ describe("GitHubGraphQLClient", () => {
 						"X-RateLimit-Limit": "5000",
 					}),
 				})
-				.mockResolvedValueOnce({
-					ok: true,
-					json: async () => createSuccessResponse([prEdge]),
-				});
+				.mockResolvedValueOnce(createMockFetchResponse(rawJson));
 			globalThis.fetch = fetchMock;
 
 			const result = await retryClient.fetchPullRequests();
 
-			// 429 + Retry-After ありなのでリトライ → 2回目で成功
 			expect(fetchMock).toHaveBeenCalledTimes(2);
-			expect(result.myPrs).toHaveLength(1);
-			expect(result.myPrs[0].title).toBe("Recovered PR");
-			expect(result.myPrs[0].number).toBe(42);
-		});
-
-		it("should treat 403 with X-RateLimit-Remaining: 0 as rate_limited error code", async () => {
-			const fetchMock = vi.fn().mockResolvedValue({
-				ok: false,
-				status: 403,
-				statusText: "Forbidden",
-				headers: new Headers({
-					"X-RateLimit-Remaining": "0",
-					"X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 120),
-					"X-RateLimit-Limit": "5000",
-				}),
-			});
-			globalThis.fetch = fetchMock;
-
-			const error = await retryClient.fetchPullRequests().catch((e: unknown) => e);
-
-			expect(error).toBeInstanceOf(GitHubApiError);
-			const apiError = error as GitHubApiError;
-			// 403 + X-RateLimit-Remaining: 0 → code は "rate_limited" であること
-			expect(apiError.code).toBe("rate_limited");
-			expect(apiError.statusCode).toBe(403);
-			expect(apiError.rateLimitRemaining).toBe(0);
+			expect(result.rawJson).toBe(rawJson);
+			expect(result.hasMore).toBe(false);
 		});
 
 		it("should set retryAfter to undefined when Retry-After header is HTTP-date format", async () => {
@@ -840,11 +728,11 @@ describe("GitHubGraphQLClient", () => {
 			expect(error).toBeInstanceOf(GitHubApiError);
 			const apiError = error as GitHubApiError;
 			expect(apiError.code).toBe("rate_limited");
-			// HTTP-date 形式は非数値なので retryAfter は undefined
 			expect(apiError.retryAfter).toBeUndefined();
 		});
 
 		it("should retry on 403 with X-RateLimit-Remaining: 0 and Retry-After", async () => {
+			const rawJson = createRawResponse();
 			const fetchMock = vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -858,23 +746,19 @@ describe("GitHubGraphQLClient", () => {
 						"X-RateLimit-Limit": "5000",
 					}),
 				})
-				.mockResolvedValueOnce({
-					ok: true,
-					json: async () => createSuccessResponse(),
-				});
+				.mockResolvedValueOnce(createMockFetchResponse(rawJson));
 			globalThis.fetch = fetchMock;
 
 			const result = await retryClient.fetchPullRequests();
 
-			expect(result.myPrs).toEqual([]);
-			// 403 + X-RateLimit-Remaining: 0 + Retry-After → rate_limited としてリトライ
+			expect(result.rawJson).toBe(rawJson);
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
 	});
 });
 
 describe("graphql-client の依存方向", () => {
-	it("FetchPullRequestsResult, PullRequest, ReviewDecision, StatusState を domain/types/github から直接 import していること", () => {
+	it("FetchRawPullRequestsResult を domain/types/github から直接 import していること", () => {
 		const files = import.meta.glob("../../../adapter/github/graphql-client.ts", {
 			query: "?raw",
 			eager: true,
@@ -887,20 +771,11 @@ describe("graphql-client の依存方向", () => {
 		expect(content).toBeDefined();
 
 		expect(content).toMatch(
-			/import\s+[\s\S]*?\bFetchPullRequestsResult\b[\s\S]*?from\s+["'].*domain\/types\/github["']/,
-		);
-		expect(content).toMatch(
-			/import\s+[\s\S]*?\bPullRequest\b[\s\S]*?from\s+["'].*domain\/types\/github["']/,
-		);
-		expect(content).toMatch(
-			/import\s+[\s\S]*?\bReviewDecision\b[\s\S]*?from\s+["'].*domain\/types\/github["']/,
-		);
-		expect(content).toMatch(
-			/import\s+[\s\S]*?\bStatusState\b[\s\S]*?from\s+["'].*domain\/types\/github["']/,
+			/import\s+[\s\S]*?\bFetchRawPullRequestsResult\b[\s\S]*?from\s+["'].*domain\/types\/github["']/,
 		);
 	});
 
-	it("shared/types/github から FetchPullRequestsResult, PullRequest, ReviewDecision, StatusState を import していないこと", () => {
+	it("shared/types/github から FetchRawPullRequestsResult を import していないこと", () => {
 		const files = import.meta.glob("../../../adapter/github/graphql-client.ts", {
 			query: "?raw",
 			eager: true,
@@ -911,17 +786,13 @@ describe("graphql-client の依存方向", () => {
 		const content = Object.values(files)[0]?.default;
 		expect(content).toBeDefined();
 
-		// multiline import 文を抽出して禁止シンボルを検証
 		const sharedGithubImportPattern =
 			/import\s+(?:type\s+)?{([^}]*)}\s+from\s+["'].*shared\/types\/github["']/g;
 		const matches = [...(content?.matchAll(sharedGithubImportPattern) ?? [])];
 
 		for (const match of matches) {
 			const importedSymbols = match[1];
-			expect(importedSymbols).not.toMatch(/\bFetchPullRequestsResult\b/);
-			expect(importedSymbols).not.toMatch(/\bPullRequest\b/);
-			expect(importedSymbols).not.toMatch(/\bReviewDecision\b/);
-			expect(importedSymbols).not.toMatch(/\bStatusState\b/);
+			expect(importedSymbols).not.toMatch(/\bFetchRawPullRequestsResult\b/);
 		}
 	});
 });

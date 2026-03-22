@@ -1,10 +1,5 @@
 import type { GitHubApiPort } from "../../domain/ports/github-api.port";
-import type {
-	FetchPullRequestsResult,
-	PullRequest,
-	ReviewDecision,
-	StatusState,
-} from "../../domain/types/github";
+import type { FetchRawPullRequestsResult } from "../../domain/types/github";
 import { GitHubApiError } from "../../shared/types/errors";
 import { extractRateLimitInfo } from "./rate-limit";
 import type { DelayFn, RetryConfig } from "./retry";
@@ -14,32 +9,7 @@ const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 
 // --- Adapter 内部型 (export しない) ---
 
-type SearchEdge = {
-	readonly node: {
-		readonly title: string;
-		readonly url: string;
-		readonly number: number;
-		readonly isDraft: boolean;
-		readonly reviewDecision: ReviewDecision;
-		readonly commits: {
-			readonly nodes: ReadonlyArray<{
-				readonly commit: {
-					readonly statusCheckRollup: {
-						readonly state: StatusState;
-					} | null;
-				};
-			}>;
-		};
-		readonly repository: {
-			readonly nameWithOwner: string;
-		};
-		readonly createdAt: string;
-		readonly updatedAt: string;
-	} | null;
-};
-
 type SearchResultConnection = {
-	readonly edges: readonly SearchEdge[];
 	readonly pageInfo: {
 		readonly hasNextPage: boolean;
 	};
@@ -59,11 +29,17 @@ type GraphQLResponse = {
 
 const PR_FIELDS_FRAGMENT = `
 fragment PrFields on PullRequest {
+  id
   title
   url
   number
   isDraft
   reviewDecision
+  author {
+    login
+  }
+  additions
+  deletions
   commits(last: 1) {
     nodes {
       commit {
@@ -153,7 +129,7 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		this.delayFn = delayFn ?? defaultDelay;
 	}
 
-	async fetchPullRequests(): Promise<FetchPullRequestsResult> {
+	async fetchPullRequests(): Promise<FetchRawPullRequestsResult> {
 		const token = await this.getAccessToken();
 		const response = await withRetry(
 			() => this.executeQuery(token),
@@ -162,7 +138,15 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 			this.delayFn,
 			{ getDelayOverride: getRateLimitDelay },
 		);
-		const body = await this.parseResponseBody(response);
+		const rawJson = await this.parseResponseBody(response);
+
+		let body: GraphQLResponse;
+		try {
+			body = JSON.parse(rawJson) as GraphQLResponse;
+		} catch (error: unknown) {
+			const details = error instanceof Error ? error.message : undefined;
+			throw new GitHubApiError("unknown", "Failed to parse API response", undefined, details);
+		}
 
 		this.checkGraphQLErrors(body);
 
@@ -170,31 +154,11 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 			throw new GitHubApiError("unknown", "GraphQL response missing data field");
 		}
 
-		const myPrsConnection = body.data.myPrs;
-		const reviewRequestedConnection = body.data.reviewRequested;
-
-		const myPrsEdges = myPrsConnection?.edges ?? [];
-		const reviewRequestedEdges = reviewRequestedConnection?.edges ?? [];
-
 		const hasMore =
-			(myPrsConnection?.pageInfo.hasNextPage ?? false) ||
-			(reviewRequestedConnection?.pageInfo.hasNextPage ?? false);
+			(body.data.myPrs?.pageInfo.hasNextPage ?? false) ||
+			(body.data.reviewRequested?.pageInfo.hasNextPage ?? false);
 
-		return {
-			myPrs: myPrsEdges
-				.filter(
-					(edge): edge is SearchEdge & { node: NonNullable<SearchEdge["node"]> } =>
-						edge.node !== null,
-				)
-				.map(mapEdgeToPullRequest),
-			reviewRequested: reviewRequestedEdges
-				.filter(
-					(edge): edge is SearchEdge & { node: NonNullable<SearchEdge["node"]> } =>
-						edge.node !== null,
-				)
-				.map(mapEdgeToPullRequest),
-			hasMore,
-		};
+		return { rawJson, hasMore };
 	}
 
 	private async executeQuery(token: string): Promise<Response> {
@@ -251,9 +215,9 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		return response;
 	}
 
-	private async parseResponseBody(response: Response): Promise<GraphQLResponse> {
+	private async parseResponseBody(response: Response): Promise<string> {
 		try {
-			return (await response.json()) as GraphQLResponse;
+			return await response.text();
 		} catch (error: unknown) {
 			const details = error instanceof Error ? error.message : undefined;
 			throw new GitHubApiError("unknown", "Failed to parse API response", undefined, details);
@@ -281,24 +245,4 @@ function mapHttpStatusToErrorCode(status: number): GitHubApiError["code"] {
 	if (status === 429) return "rate_limited";
 	if (status >= 500) return "server_error";
 	return "unknown";
-}
-
-function mapEdgeToPullRequest(edge: { node: NonNullable<SearchEdge["node"]> }): PullRequest {
-	const node = edge.node;
-	const lastCommit = node.commits.nodes.length > 0 ? node.commits.nodes[0] : null;
-	const statusState = lastCommit?.commit.statusCheckRollup?.state ?? null;
-
-	return {
-		title: node.title,
-		url: node.url,
-		number: node.number,
-		isDraft: node.isDraft,
-		reviewDecision: node.reviewDecision,
-		commitStatusState: statusState,
-		repository: {
-			nameWithOwner: node.repository.nameWithOwner,
-		},
-		createdAt: node.createdAt,
-		updatedAt: node.updatedAt,
-	};
 }

@@ -1,5 +1,5 @@
-import type { FetchPullRequestsResult } from "../types/github";
+import type { FetchRawPullRequestsResult } from "../types/github";
 
 export interface GitHubApiPort {
-	fetchPullRequests(): Promise<FetchPullRequestsResult>;
+	fetchPullRequests(): Promise<FetchRawPullRequestsResult>;
 }
