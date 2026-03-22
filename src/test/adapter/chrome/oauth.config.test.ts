@@ -52,6 +52,8 @@ describe("createOAuthConfig", () => {
 
 	// 以下の not.toHaveProperty テストは toEqual で構造的に保証されているが、
 	// Device Flow 移行で「旧プロパティが存在しないこと」を意図として明示するために残す。
+	// Issue #60: OAuth シークレットのフロントエンドバンドル混入リスク解消の一環として、
+	// OAuthConfig 型に clientSecret が含まれないことを保証する。
 	it("should not have clientSecret property", async () => {
 		vi.stubEnv("GITHUB_CLIENT_ID", "test-client-id");
 
