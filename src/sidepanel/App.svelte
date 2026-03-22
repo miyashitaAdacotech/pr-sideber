@@ -2,9 +2,10 @@
 	import { untrack } from "svelte";
 	import LoginScreen from "./components/LoginScreen.svelte";
 	import MainScreen from "./components/MainScreen.svelte";
-	import { createAuthUseCase } from "./usecase/auth.usecase.js";
+	import type { createAuthUseCase } from "./usecase/auth.usecase.js";
 
-	const authUseCase = createAuthUseCase((msg) => chrome.runtime.sendMessage(msg));
+	type Props = { authUseCase: ReturnType<typeof createAuthUseCase> };
+	const { authUseCase }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);

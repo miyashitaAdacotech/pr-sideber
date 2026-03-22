@@ -28,8 +28,13 @@ async function handleAuthMessage(auth: AuthPort, message: AuthMessage): Promise<
 			}
 		}
 		case "AUTH_CHECK": {
-			const authenticated = await auth.isAuthenticated();
-			return { type: "AUTH_STATUS", authenticated };
+			try {
+				const authenticated = await auth.isAuthenticated();
+				return { type: "AUTH_STATUS", authenticated };
+			} catch (error: unknown) {
+				console.error("AUTH_CHECK failed:", error);
+				return { type: "AUTH_STATUS", authenticated: false };
+			}
 		}
 	}
 }

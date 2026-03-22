@@ -1,4 +1,4 @@
-import type { SendMessage } from "../../domain/ports/message.port";
+import type { SendMessage } from "../../shared/ports/message.port";
 import type { AuthResponse } from "../../shared/types/messages";
 
 function assertResponse(response: AuthResponse | undefined): asserts response is AuthResponse {
@@ -12,7 +12,7 @@ export function createAuthUseCase(sendMessage: SendMessage) {
 		const response = await sendMessage({ type: "AUTH_LOGIN" });
 		assertResponse(response);
 		if (response.type === "AUTH_FAILURE") {
-			throw new Error(response.error);
+			throw new Error("Authentication failed. Please try again.");
 		}
 	}
 
@@ -20,7 +20,7 @@ export function createAuthUseCase(sendMessage: SendMessage) {
 		const response = await sendMessage({ type: "AUTH_LOGOUT" });
 		assertResponse(response);
 		if (response.type === "AUTH_FAILURE") {
-			throw new Error(response.error);
+			throw new Error("Logout failed. Please try again.");
 		}
 	}
 

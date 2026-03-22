@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	createAuthUseCase,
 } from "../../../sidepanel/usecase/auth.usecase";
-import type { SendMessage } from "../../../domain/ports/message.port";
+import type { SendMessage } from "../../../shared/ports/message.port";
 import type { AuthResponse } from "../../../shared/types/messages";
 
 describe("auth usecase", () => {
@@ -32,7 +32,7 @@ describe("auth usecase", () => {
 			mockSendMessage.mockResolvedValue(response);
 
 			const { login } = createAuthUseCase(mockSendMessage);
-			await expect(login()).rejects.toThrow("User denied");
+			await expect(login()).rejects.toThrow("Authentication failed. Please try again.");
 		});
 
 		it("should throw when sendMessage returns undefined", async () => {
@@ -59,6 +59,14 @@ describe("auth usecase", () => {
 			await logout();
 
 			expect(mockSendMessage).toHaveBeenCalledWith({ type: "AUTH_LOGOUT" });
+		});
+
+		it("should throw with fixed message when AUTH_FAILURE is returned", async () => {
+			const response: AuthResponse = { type: "AUTH_FAILURE", error: "Storage error" };
+			mockSendMessage.mockResolvedValue(response);
+
+			const { logout } = createAuthUseCase(mockSendMessage);
+			await expect(logout()).rejects.toThrow("Logout failed. Please try again.");
 		});
 
 		it("should throw when sendMessage returns undefined", async () => {

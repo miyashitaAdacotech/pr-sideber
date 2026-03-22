@@ -127,6 +127,22 @@ describe("createMessageHandler", () => {
 			expect(response).toEqual({ type: "AUTH_STATUS", authenticated: true });
 		});
 
+		it("should return AUTH_STATUS with authenticated: false when isAuthenticated throws", async () => {
+			mockAuth.isAuthenticated.mockRejectedValue(new Error("Storage corrupted"));
+
+			createMessageHandler(mockAuth);
+			const listener = getChromeMock().runtime.onMessage.addListener.mock.calls[0][0];
+
+			const sendResponse = vi.fn();
+			const message: AuthMessage = { type: "AUTH_CHECK" };
+			listener(message, { id: getChromeMock().runtime.id }, sendResponse);
+
+			await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
+
+			const response: AuthResponse = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ type: "AUTH_STATUS", authenticated: false });
+		});
+
 		it("should return AUTH_STATUS with authenticated: false when not authenticated", async () => {
 			mockAuth.isAuthenticated.mockResolvedValue(false);
 

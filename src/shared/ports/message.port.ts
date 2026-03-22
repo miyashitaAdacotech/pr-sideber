@@ -1,4 +1,4 @@
-import type { AuthMessage, AuthResponse } from "../../shared/types/messages";
+import type { AuthMessage, AuthResponse } from "../types/messages";
 
 export type SendMessage = (
 	message: AuthMessage,

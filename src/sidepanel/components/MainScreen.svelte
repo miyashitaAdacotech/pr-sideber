@@ -22,9 +22,8 @@
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
-					const errorMessage =
-						e instanceof Error ? e.message : "Unknown error";
-					message = `WASM init failed: ${errorMessage}`;
+					console.error("WASM init failed:", e);
+					message = "機能の初期化に失敗しました。";
 				}
 			}
 		});
