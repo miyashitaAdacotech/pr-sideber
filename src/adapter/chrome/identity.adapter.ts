@@ -8,11 +8,20 @@ const TOKEN_STORAGE_KEY = "github_auth_token";
 
 export class ChromeIdentityAdapter implements AuthPort {
 	private pendingAuth: Promise<AuthToken> | null = null;
+	private cachedAuthenticated: boolean | null = null;
 
 	constructor(
 		private readonly storage: StoragePort,
 		private readonly config: OAuthConfig,
-	) {}
+	) {
+		chrome.storage.onChanged.addListener((changes, areaName) => {
+			if (areaName !== "local") return;
+			if (TOKEN_STORAGE_KEY in changes) {
+				const change = changes[TOKEN_STORAGE_KEY];
+				this.cachedAuthenticated = change.newValue !== undefined;
+			}
+		});
+	}
 
 	authorize(): Promise<AuthToken> {
 		if (this.pendingAuth) {
@@ -30,16 +39,23 @@ export class ChromeIdentityAdapter implements AuthPort {
 
 	async clearToken(): Promise<void> {
 		await this.storage.remove(TOKEN_STORAGE_KEY);
+		this.cachedAuthenticated = false;
 	}
 
 	async isAuthenticated(): Promise<boolean> {
+		if (this.cachedAuthenticated !== null) {
+			return this.cachedAuthenticated;
+		}
 		const token = await this.getToken();
 		if (token === null) {
+			this.cachedAuthenticated = false;
 			return false;
 		}
 		if (token.expiresAt !== undefined && Date.now() >= token.expiresAt) {
+			this.cachedAuthenticated = false;
 			return false;
 		}
+		this.cachedAuthenticated = true;
 		return true;
 	}
 
@@ -55,6 +71,7 @@ export class ChromeIdentityAdapter implements AuthPort {
 
 		const token = await this.exchangeCodeForToken(code, codeVerifier);
 		await this.storage.set(TOKEN_STORAGE_KEY, token);
+		this.cachedAuthenticated = true;
 		return token;
 	}
 
