@@ -1,5 +1,6 @@
 import type { DeviceCodeResponse, PollResult } from "../../domain/types/auth";
 import type { SendMessage } from "../ports/message.port";
+import { AuthError, isAuthErrorCode } from "../types/auth";
 import type { ResponseMessage } from "../types/messages";
 
 /** Side Panel 側のポーリング間隔下限 (秒) */
@@ -49,6 +50,9 @@ export function createAuthUseCase(sendMessage: SendMessage) {
 	async function requestDeviceCode(): Promise<DeviceCodeResponse> {
 		const response = await sendMessage("AUTH_DEVICE_CODE");
 		if (!response.ok) {
+			if (isAuthErrorCode(response.error.code)) {
+				throw new AuthError(response.error.code, response.error.message);
+			}
 			throw new Error(response.error.message);
 		}
 		return response.data;
@@ -101,18 +105,18 @@ export function createAuthUseCase(sendMessage: SendMessage) {
 						lastError = new Error(response.error.message);
 						continue;
 					}
-					// リトライ不可のエラーは即 throw
-					onStateChange?.({ phase: "error", message: response.error.message });
+					// リトライ不可のエラーは即 throw (controller の catch で toUserFacingMessage が適用される)
+					if (isAuthErrorCode(response.error.code)) {
+						throw new AuthError(response.error.code, response.error.message);
+					}
 					throw new Error(response.error.message);
 				}
 
 				return response.data;
 			}
 
-			// リトライ上限超過
-			const message = lastError?.message ?? "Unknown polling error";
-			onStateChange?.({ phase: "error", message });
-			throw lastError ?? new Error(message);
+			// リトライ上限超過 (controller の catch で toUserFacingMessage が適用される)
+			throw lastError ?? new Error("Unknown polling error");
 		}
 
 		while (Date.now() < deadline) {

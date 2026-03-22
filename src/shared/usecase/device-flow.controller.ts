@@ -1,4 +1,22 @@
+import { AuthError, type AuthErrorCode } from "../types/auth";
 import type { DeviceFlowState, createAuthUseCase } from "./auth.usecase";
+
+const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
+	authorization_failed: "認証に失敗しました。もう一度お試しください。",
+	token_exchange_failed: "トークンの取得に失敗しました。もう一度お試しください。",
+	device_code_request_failed: "デバイスコードの取得に失敗しました。もう一度お試しください。",
+	device_code_validation_failed: "デバイスコードの検証に失敗しました。もう一度お試しください。",
+	device_flow_expired: "認証の有効期限が切れました。もう一度お試しください。",
+	device_flow_denied: "認証が拒否されました。",
+};
+const FALLBACK_ERROR_MESSAGE = "エラーが発生しました。もう一度お試しください。";
+
+function toUserFacingMessage(error: unknown): string {
+	if (error instanceof AuthError) {
+		return AUTH_ERROR_MESSAGES[error.code] ?? FALLBACK_ERROR_MESSAGE;
+	}
+	return FALLBACK_ERROR_MESSAGE;
+}
 
 export type DeviceFlowController = {
 	readonly getState: () => DeviceFlowState;
@@ -45,7 +63,7 @@ export function createDeviceFlowController(
 				verificationUri: result.verificationUri,
 			});
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
+			const message = toUserFacingMessage(error);
 			setState({ phase: "error", message });
 		}
 	}
@@ -67,7 +85,7 @@ export function createDeviceFlowController(
 		} catch (error: unknown) {
 			const current = state;
 			if (current.phase !== "error" && current.phase !== "expired" && current.phase !== "denied") {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = toUserFacingMessage(error);
 				setState({ phase: "error", message });
 			}
 		}

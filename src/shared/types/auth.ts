@@ -22,6 +22,19 @@ export type AuthErrorCode =
 	| "device_flow_expired"
 	| "device_flow_denied";
 
+const AUTH_ERROR_CODES: ReadonlySet<string> = new Set<string>([
+	"authorization_failed",
+	"token_exchange_failed",
+	"device_code_request_failed",
+	"device_code_validation_failed",
+	"device_flow_expired",
+	"device_flow_denied",
+]);
+
+export function isAuthErrorCode(code: string): code is AuthErrorCode {
+	return AUTH_ERROR_CODES.has(code);
+}
+
 export class AuthError extends Error {
 	readonly code: AuthErrorCode;
 	constructor(code: AuthErrorCode, message: string, options?: ErrorOptions) {
