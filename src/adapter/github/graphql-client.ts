@@ -1,6 +1,7 @@
 import type { GitHubApiPort } from "../../domain/ports/github-api.port";
 import type { FetchRawPullRequestsResult } from "../../domain/types/github";
 import { GitHubApiError } from "../../shared/types/errors";
+import { devOnlyDetails, devOnlyMessage } from "./dev-details";
 import { extractRateLimitInfo } from "./rate-limit";
 import type { DelayFn, RetryConfig } from "./retry";
 import { defaultDelay, withRetry } from "./retry";
@@ -144,8 +145,12 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		try {
 			body = JSON.parse(rawJson) as GraphQLResponse;
 		} catch (error: unknown) {
-			const details = error instanceof Error ? error.message : undefined;
-			throw new GitHubApiError("unknown", "Failed to parse API response", undefined, details);
+			throw new GitHubApiError(
+				"unknown",
+				"Failed to parse API response",
+				undefined,
+				devOnlyDetails(error),
+			);
 		}
 
 		this.checkGraphQLErrors(body);
@@ -173,8 +178,12 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 				body: JSON.stringify({ query: PULL_REQUESTS_QUERY }),
 			});
 		} catch (error: unknown) {
-			const details = error instanceof Error ? error.message : undefined;
-			throw new GitHubApiError("network_error", "Network request failed", undefined, details);
+			throw new GitHubApiError(
+				"network_error",
+				"Network request failed",
+				undefined,
+				devOnlyDetails(error),
+			);
 		}
 
 		if (!response.ok) {
@@ -219,8 +228,12 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 		try {
 			return await response.text();
 		} catch (error: unknown) {
-			const details = error instanceof Error ? error.message : undefined;
-			throw new GitHubApiError("unknown", "Failed to parse API response", undefined, details);
+			throw new GitHubApiError(
+				"unknown",
+				"Failed to parse API response",
+				undefined,
+				devOnlyDetails(error),
+			);
 		}
 	}
 
@@ -228,7 +241,7 @@ export class GitHubGraphQLClient implements GitHubApiPort {
 	// 部分的に有効なデータがあっても、整合性が保証できないため一律エラー扱い。
 	private checkGraphQLErrors(body: GraphQLResponse): void {
 		if (body.errors && body.errors.length > 0) {
-			const details = body.errors.map((e) => e.message).join("; ");
+			const details = devOnlyMessage(body.errors.map((e) => e.message).join("; "));
 			throw new GitHubApiError(
 				"graphql_error",
 				"GitHub API returned GraphQL errors",

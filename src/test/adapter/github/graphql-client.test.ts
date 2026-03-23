@@ -4,6 +4,14 @@ import type { DelayFn } from "../../../adapter/github/retry";
 import type { GitHubApiPort } from "../../../domain/ports/github-api.port";
 import { GitHubApiError } from "../../../shared/types/errors";
 
+vi.mock("../../../adapter/github/dev-details", async (importOriginal) => {
+	const original = await importOriginal<typeof import("../../../adapter/github/dev-details")>();
+	return {
+		devOnlyDetails: vi.fn(original.devOnlyDetails),
+		devOnlyMessage: vi.fn(original.devOnlyMessage),
+	};
+});
+
 const noDelay: DelayFn = () => Promise.resolve();
 
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
@@ -753,6 +761,89 @@ describe("GitHubGraphQLClient", () => {
 
 			expect(result.rawJson).toBe(rawJson);
 			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("fetchPullRequests - 本番ビルドでの details 除外", () => {
+		let devDetails: typeof import("../../../adapter/github/dev-details");
+
+		beforeEach(async () => {
+			devDetails = await import("../../../adapter/github/dev-details");
+			vi.mocked(devDetails.devOnlyDetails).mockReturnValue(undefined);
+			vi.mocked(devDetails.devOnlyMessage).mockReturnValue(undefined);
+		});
+
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		it("network_error (fetch rejection) 時に PROD では details が undefined", async () => {
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("network_error");
+			expect((error as GitHubApiError).details).toBeUndefined();
+		});
+
+		it("graphql_error 時に PROD では details が undefined", async () => {
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			const errorJson = JSON.stringify({
+				errors: [{ message: "Field 'foo' doesn't exist" }],
+			});
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				text: async () => errorJson,
+			});
+
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("graphql_error");
+			expect((error as GitHubApiError).details).toBeUndefined();
+		});
+
+		it("JSON パースエラー (unknown) 時に PROD では details が undefined", async () => {
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				text: async () => "<html>Not JSON</html>",
+			});
+
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("unknown");
+			expect((error as GitHubApiError).details).toBeUndefined();
+		});
+
+		it("response.text() 失敗 (unknown) 時に PROD では details が undefined", async () => {
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				text: async () => {
+					throw new Error("body stream already read");
+				},
+			});
+
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).code).toBe("unknown");
+			expect((error as GitHubApiError).details).toBeUndefined();
+		});
+
+		it("DEV モードでは network_error 時に details が設定される", async () => {
+			vi.restoreAllMocks();
+			const noRetryClient = new GitHubGraphQLClient(mockGetAccessToken, { maxRetries: 0 });
+			globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+			const error = await noRetryClient.fetchPullRequests().catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(GitHubApiError);
+			expect((error as GitHubApiError).details).toBe("Failed to fetch");
 		});
 	});
 });
