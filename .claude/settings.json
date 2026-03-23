@@ -9,9 +9,7 @@
 			"Bash(gh label:*)",
 			"Bash(gh auth status:*)",
 			"Bash(gh api graphql:*)",
-			"Bash(gh api repos/:*)",
 			"Bash(gh api /repos/:*)",
-			"Bash(gh api -X DELETE repos/:*)",
 			"Bash(gh api -X DELETE /repos/:*)"
 		],
 		"deny": [

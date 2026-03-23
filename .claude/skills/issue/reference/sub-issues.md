@@ -11,7 +11,7 @@
 CHILD_ID=$(gh api /repos/{owner}/{repo}/issues/$CHILD_NUMBER --jq .id)
 
 # 親 issue にサブ issue として追加
-gh api repos/{owner}/{repo}/issues/$PARENT_NUMBER/sub_issues \
+gh api /repos/{owner}/{repo}/issues/$PARENT_NUMBER/sub_issues \
   -f sub_issue_id="$CHILD_ID"
 ```
 
@@ -47,7 +47,7 @@ gh api graphql \
 ## Sub-issue 解除
 
 ```bash
-echo '{"sub_issue_id": 子の数値id}' | gh api -X DELETE repos/OWNER/REPO/issues/親の番号/sub_issue --input -
+echo '{"sub_issue_id": 子の数値id}' | gh api -X DELETE /repos/OWNER/REPO/issues/親の番号/sub_issue --input -
 ```
 
 ## 参照
