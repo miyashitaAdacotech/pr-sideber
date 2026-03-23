@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PrProcessorPort, ProcessedPrsResult } from "../domain/ports/pr-processor.port";
 
 describe("PrProcessorPort", () => {
-	it("interface is implementable with correct shape", () => {
+	it("interface is implementable with correct shape", async () => {
 		// 型レベルテスト: PrProcessorPort を満たすオブジェクトが作成可能であること
 		// TODO: 実際の WasmPrProcessor との型互換は WASM ビルド後に結合テストで検証する
 		const mockProcessor: PrProcessorPort = {
@@ -14,7 +14,7 @@ describe("PrProcessorPort", () => {
 			},
 		};
 
-		const result = mockProcessor.processPullRequests("{}", "testuser");
+		const result = await mockProcessor.processPullRequests("{}", "testuser");
 		expect(result.myPrs).toBeDefined();
 		expect(result.reviewRequests).toBeDefined();
 		expect(result.myPrs.items).toEqual([]);

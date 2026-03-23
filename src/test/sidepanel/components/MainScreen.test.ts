@@ -11,6 +11,10 @@ function createMockFetchPrs(): () => Promise<ProcessedPrsResult & { hasMore: boo
 	}));
 }
 
+function createMockGetCachedPrs(): () => Promise<null> {
+	return vi.fn(async () => null);
+}
+
 describe("MainScreen", () => {
 	let component: ReturnType<typeof mount>;
 
@@ -27,6 +31,7 @@ describe("MainScreen", () => {
 			props: {
 				onLogout: vi.fn(async () => {}),
 				fetchPrs: createMockFetchPrs(),
+				getCachedPrs: createMockGetCachedPrs(),
 			},
 		});
 		expect(document.body.innerHTML).not.toBe("");
@@ -38,6 +43,7 @@ describe("MainScreen", () => {
 			props: {
 				onLogout: vi.fn(async () => {}),
 				fetchPrs: createMockFetchPrs(),
+				getCachedPrs: createMockGetCachedPrs(),
 			},
 		});
 		const heading = document.querySelector("h1");
@@ -51,6 +57,7 @@ describe("MainScreen", () => {
 			props: {
 				onLogout: vi.fn(async () => {}),
 				fetchPrs: createMockFetchPrs(),
+				getCachedPrs: createMockGetCachedPrs(),
 			},
 		});
 		expect(document.body.textContent).toContain("Loading");

@@ -16,7 +16,7 @@ export function createPrUseCase(
 			throw new Error(response.error.message);
 		}
 		const raw: FetchRawPullRequestsResult = response.data;
-		const processed = prProcessor.processPullRequests(raw.rawJson, login);
+		const processed = await prProcessor.processPullRequests(raw.rawJson, login);
 		const result = { ...processed, hasMore: raw.hasMore };
 
 		if (storage) {
