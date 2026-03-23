@@ -16,6 +16,7 @@ export interface PrItemDto {
 	readonly deletions: number;
 	readonly createdAt: string;
 	readonly updatedAt: string;
+	readonly sizeLabel: string;
 }
 
 /** Rust の domain::dto::PrListDto に対応する TypeScript 型 */

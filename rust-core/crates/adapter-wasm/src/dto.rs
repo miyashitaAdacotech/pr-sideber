@@ -3,6 +3,7 @@ use tsify_next::Tsify;
 
 use domain::entity::PullRequest;
 use domain::status::{ApprovalStatus, CiStatus};
+use usecase::determine::determine_pr_size;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Tsify)]
 #[cfg_attr(test, derive(serde::Deserialize))]
@@ -24,6 +25,8 @@ pub struct PrItemDto {
     pub created_at: String,
     /// ISO 8601 形式の文字列。chrono 不使用で WASM バイナリサイズを削減。
     pub updated_at: String,
+    /// PR の変更規模ラベル ("XS", "S", "M", "L", "XL")。
+    pub size_label: String,
 }
 
 impl From<PullRequest> for PrItemDto {
@@ -57,6 +60,9 @@ impl From<PullRequest> for PrItemDto {
             deletions,
             created_at,
             updated_at,
+            size_label: determine_pr_size(additions, deletions)
+                .as_label()
+                .to_string(),
         }
     }
 }
@@ -92,6 +98,7 @@ mod tests {
             deletions: 20,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-02T00:00:00Z".to_string(),
+            size_label: "M".to_string(),
         }
     }
 
@@ -112,6 +119,7 @@ mod tests {
         assert!(json.contains("\"ciStatus\""));
         assert!(json.contains("\"createdAt\""));
         assert!(json.contains("\"updatedAt\""));
+        assert!(json.contains("\"sizeLabel\""));
     }
 
     #[test]
@@ -200,6 +208,8 @@ mod tests {
         assert_eq!(dto.deletions, 80);
         assert_eq!(dto.created_at, "2026-03-01T12:00:00Z");
         assert_eq!(dto.updated_at, "2026-03-15T18:30:00Z");
+        // additions=250 + deletions=80 = 330 → L (201..=500)
+        assert_eq!(dto.size_label, "L");
     }
 
     #[test]

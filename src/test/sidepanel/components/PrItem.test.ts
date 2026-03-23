@@ -18,6 +18,7 @@ function createPrItemDto(overrides: Partial<PrItemDto> = {}): PrItemDto {
 		deletions: 3,
 		createdAt: "2026-03-20T10:00:00Z",
 		updatedAt: "2026-03-23T10:00:00Z",
+		sizeLabel: "S",
 		...overrides,
 	};
 }

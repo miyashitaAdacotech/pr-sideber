@@ -5,6 +5,7 @@
 	import CiBadge from "./CiBadge.svelte";
 	import DraftBadge from "./DraftBadge.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
+	import SizeBadge from "./SizeBadge.svelte";
 
 	type Props = {
 		pr: PrItemDto;
@@ -23,6 +24,7 @@
 		<span class="pr-updated"><RelativeTime dateStr={pr.updatedAt} /></span>
 	</div>
 	<div class="pr-badges">
+		<SizeBadge sizeLabel={pr.sizeLabel} />
 		<DraftBadge isDraft={pr.isDraft} />
 		{#if !pr.isDraft}
 			<ApprovalBadge approvalStatus={pr.approvalStatus} />
