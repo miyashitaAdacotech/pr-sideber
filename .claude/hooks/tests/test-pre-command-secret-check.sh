@@ -170,6 +170,25 @@ assert_blocked "22: Authorization: Bearer (大文字B) を検出" \
 assert_allowed "23: flag bearer は許可 (false positive 修正)" \
   'echo "flag bearer"'
 
+# --- Issue #70: GH_TOKEN バリエーション ---
+
+echo ""
+echo "=== Issue #70: GH_TOKEN バリエーション ==="
+assert_blocked "31: ダブルクォート付き echo GH_TOKEN" \
+  'echo "$GH_TOKEN"'
+
+assert_blocked "32: printf 経由 GH_TOKEN" \
+  'printf '"'"'%s'"'"' "$GH_TOKEN"'
+
+assert_blocked "33: ヒアストリング GH_TOKEN" \
+  'cat <<< $GH_TOKEN'
+
+assert_blocked "34: ブレース展開 ${GH_TOKEN}" \
+  'echo ${GH_TOKEN}'
+
+assert_blocked "35: printenv GH_TOKEN を検出" \
+  'printenv GH_TOKEN'
+
 # --- 正常系 (PASS するはず) ---
 
 echo ""
