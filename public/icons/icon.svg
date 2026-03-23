@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Green circle background -->
+  <circle cx="64" cy="64" r="60" fill="#2da44e"/>
+  <!-- PR icon: source branch line with dot -->
+  <circle cx="46" cy="38" r="7" fill="none" stroke="#fff" stroke-width="5"/>
+  <line x1="46" y1="45" x2="46" y2="90" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <!-- Target branch line with dot -->
+  <circle cx="82" cy="90" r="7" fill="none" stroke="#fff" stroke-width="5"/>
+  <line x1="82" y1="83" x2="82" y2="55" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <!-- Arrow curve from source to target -->
+  <path d="M46 50 C46 50 46 55 58 55 L72 55" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow head -->
+  <polyline points="68,49 76,55 68,61" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
