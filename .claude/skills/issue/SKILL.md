@@ -33,19 +33,22 @@ gh issue list --state open --limit 50 --json number,title,body,labels
 
 テンプレートの必須フィールドを漏れなく埋める。
 
-## Step 4: 優先度ラベル付与
+## Step 4: Project Category 付与
 
-IMPORTANT: Issue 作成後、必ず優先度ラベルを1つ付与する。ラベルなしで完了としない。
+IMPORTANT: Issue 作成後、必ず Project に追加して Category を1つ設定する。Category なしで完了としない。
 
-ユーザーに優先度を確認し、以下のいずれかを `gh issue edit <番号> --add-label "<ラベル>"` で付与する:
+ユーザーに Category を確認し、以下の手順で設定する:
 
-| ラベル | 判断基準 |
-|--------|----------|
-| `must-have` | MVP に必須の機能 |
-| `high-impact` | やると今後の生産性が大きく向上する |
-| `tech-risk` | 放置すると機能拡張時に壊れるリスクが高い |
-| `should-do-soon` | リスクあり、早めに対応が望ましい |
-| `nice-to-have` | 余裕があれば対応 |
+| Category | 判断基準 |
+|----------|----------|
+| `Feature` | 機能追加・UX 改良。些末なものは Nice-to-Have |
+| `Tech-Risk` | 他の機能開発をブロックしうる技術負債の解消 |
+| `UX-Risk` | バグ・重度なセキュリティ問題等ユーザーに迷惑をかける問題 |
+| `Agent-Harness` | Skills・Agents・Rules・Hooks などハーネス基盤の整備 |
+| `Refactor` | Tech-Risk より軽症な技術負債の解消。いつでも良い |
+| `Nice-to-Have` | 軽微な改善・些末な Feature。いつでも良い |
+
+**[reference/commands.md](reference/commands.md) の「Project Category 付与」セクションを参照してコマンドを実行する。**
 
 ## Step 5: リレーション設定
 

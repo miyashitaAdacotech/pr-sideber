@@ -11,84 +11,47 @@ IMPORTANT: メインコンテキストは実装コードを書かない。全作
 
 ## Phase 1: 準備
 
-```bash
-gh issue view $ISSUE_NUMBER
-```
-
-- フィーチャーブランチを作成: `feat/issue-番号-短い説明`
+1. `gh issue view $ISSUE_NUMBER` で内容を確認
+2. フィーチャーブランチを作成: `feat/issue-番号-短い説明`
+3. **[reference/project-operations.md](reference/project-operations.md) を参照して Issue の Status を `In progress` に変更する**
 
 ## Phase 2: 計画
 
 `planner` agent を起動し、Issue 内容を渡す。
 
-**サニティチェック:**
-- 責務分担 (TS/Rust/Svelte) に違反していないか
-- ファイルパスが実在するか
-- 計画の粒度が十分か (「全体を書き換える」は NG)
-- テスト計画がカバレッジ目標を満たせるか
+**サニティチェック:** 責務分担違反がないか / ファイルパスが実在するか / 粒度が十分か / テスト計画がカバレッジ目標を満たせるか
 
 問題があれば差し戻す。2回で解決しなければユーザーに報告。
 
 ## Phase 3a: テスト作成 (RED)
 
-IMPORTANT: `implementer` agent を起動し、**テストのみ** を書かせる。プロダクションコードは書かない。
-planner の計画とエッジケースを渡し、「RED フェーズのみ実行。テストを書いて失敗を確認するところまで」と明示する。
+`implementer` agent を起動し、**テストのみ** を書かせる。「RED フェーズのみ実行」と明示する。
 
-**サニティチェック:**
-- テストが書かれているか
-- テストが全て失敗 (RED) 状態であるか
-- プロダクションコードが含まれていないか
+**サニティチェック:** テストが書かれているか / 全て失敗 (RED) か / プロダクションコードが含まれていないか
 
 ## Phase 3b: テストレビュー
 
-IMPORTANT: `quality-reviewer` agent を起動し、Phase 3a で書かれたテストコードのレビューを行う。
+`quality-reviewer` agent を起動し、テストコードをレビューする。
 
-レビュー観点:
-- テストケースが計画の要件を網羅しているか
-- エッジケース (0件、null、境界値) が考慮されているか
-- テストの可読性・保守性は十分か
-- 過不足ないアサーションか
+**観点:** 要件の網羅性 / エッジケース考慮 / 可読性・保守性 / アサーションの過不足
 
-指摘があった場合: `implementer` agent にテストの修正を指示する (最大2回)。
-テストレビュー PASS 後、Phase 3c に進む。
+指摘があれば `implementer` agent に修正指示 (最大2回)。PASS 後 Phase 3c へ。
 
 ## Phase 3c: 実装 (GREEN → REFACTOR)
 
-IMPORTANT: `implementer` agent を起動し、Phase 3a で書いたテストを通す最小実装 + リファクタを行う。
-「GREEN → REFACTOR フェーズを実行。既存のテストを全て通す最小実装を書き、その後リファクタする」と明示する。
+`implementer` agent を起動し、テストを通す最小実装 + リファクタを行う。
 
-**サニティチェック:**
-- ビルドが通るか (`pnpm build` + `cargo clippy`)
-- テストが全て通過 (GREEN) しているか
-- サイレントフォールバックがないか
-- 計画からの逸脱がないか
+**サニティチェック:** ビルド通過 (`pnpm build` + `cargo clippy`) / テスト全通過 / サイレントフォールバックなし / 計画からの逸脱なし
 
 ## Phase 4: レビュー
 
-IMPORTANT: `/review` スキルを発火する。
-`/review` スキルが4つの専門 agent (security / architecture / quality / performance) を並列起動して統合レビューを返す。
+`/review` スキルを発火する。4つの専門 agent (security / architecture / quality / performance) が並列起動される。
 
 ## Phase 5: 修正 & 再レビュー
 
-IMPORTANT: レビュー指摘に基づいてコードを修正した場合、修正の規模・重要度にかかわらず必ず再レビューを通す。「MEDIUM だから再レビュー不要」という自己判断は NG。
+**[reference/review-fix-loop.md](reference/review-fix-loop.md) を参照して修正→再レビューループを実行する。**
 
-1. レビュー指摘を分類する:
-   - **修正する**: `implementer` agent にレビュー結果を渡して修正させる。IMPORTANT: HIGH/MEDIUM/LOW すべての重要度を修正対象とする。重要度が低いことは無視する理由にならない
-   - **スコープ外**: `/issue` スキルを発火して Issue を作成し、Issue 番号を記録する。`gh issue create` を直接叩かない。口だけで「別 Issue で」と言って作らないのは NG
-   - **対応不要** (修正すると副作用が出る場合のみ): 副作用の内容を具体的に明記してスキップ。「軽微だから」「LOW だから」は対応不要の理由にならない
-2. 修正があった場合、再度 `/review` スキルを発火して再レビュー
-3. **修正→再レビューのループは最大3回。** 3回目のレビュー後の残存指摘は以下のルールで処理する:
-   - **HIGH が残存**: ワークフロー中断。ユーザーに報告して判断を仰ぐ
-   - **MEDIUM が残存**: 必ずユーザーに報告し、`/issue` スキルを発火して Issue 化する
-   - **LOW が残存**: 内容に応じて動的に判断。ユーザーに報告のみで Issue 化は必須ではない
-4. 修正が一切なかった場合のみ再レビューをスキップして Phase 6 に進む
-
-**Phase 5 → 6 遷移前チェック:**
-- 「スコープ外」に分類した指摘は全て `/issue` スキルで Issue を作成済みか？
-- 3回目レビュー後の残存 MEDIUM は全て `/issue` スキルで Issue を作成済みか？
-- 作成した Issue 番号を控えているか？（PR のレビューサマリーで `#番号` として記載する）
-
-上記が未達の場合、Phase 6 に進んではならない。
+修正が一切なかった場合のみ再レビューをスキップして Phase 6 に進む。
 
 ## Phase 6: PR 作成 & 報告
 
@@ -97,9 +60,8 @@ IMPORTANT: PR 作成前に `/verify` スキルを発火して検証を通す。F
 検証 PASS 後:
 1. コミット & プッシュする
 2. **[reference/pr-creation.md](reference/pr-creation.md) を参照して PR を作成する。ユーザー確認を待たずに自律的に作成すること。**
-3. IMPORTANT: PR ボディを作成したら、送信前に必ず「PR ボディ必須セクションチェック」(pr-creation.md 記載) を通す。チェックに通らなければ PR を作成しない
-4. PR にレビューサマリーをコメントする
-5. ユーザーに PR URL を報告する
+3. PR にレビューサマリーをコメントする
+4. ユーザーに PR URL を報告する
 
 ## 異常時
 
