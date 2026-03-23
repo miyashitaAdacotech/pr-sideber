@@ -14,7 +14,7 @@ type AutoRefreshDeps = {
 
 export function createAutoRefreshUseCase(deps: AutoRefreshDeps) {
 	const ALARM_NAME = "pr-refresh";
-	const INTERVAL_MINUTES = 2;
+	const INTERVAL_MINUTES = 0.5; // 30秒 (chrome.alarms の最小値)
 
 	let started = false;
 	let unsubscribe: (() => void) | null = null;
