@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { PrItemDto } from "../../domain/ports/pr-processor.port";
-	import { formatRelativeTime } from "../../shared/utils/time";
 	import { safeUrl } from "../../shared/utils/url";
 	import ApprovalBadge from "./ApprovalBadge.svelte";
 	import CiBadge from "./CiBadge.svelte";
 	import DraftBadge from "./DraftBadge.svelte";
+	import RelativeTime from "./RelativeTime.svelte";
 
 	type Props = {
 		pr: PrItemDto;
@@ -20,7 +20,7 @@
 	<div class="pr-meta">
 		<span class="pr-author">{pr.author}</span>
 		<span class="pr-repo">{pr.repository}</span>
-		<span class="pr-updated">{formatRelativeTime(pr.updatedAt)}</span>
+		<span class="pr-updated"><RelativeTime dateStr={pr.updatedAt} /></span>
 	</div>
 	<div class="pr-badges">
 		<DraftBadge isDraft={pr.isDraft} />
