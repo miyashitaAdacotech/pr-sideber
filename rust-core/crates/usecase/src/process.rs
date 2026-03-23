@@ -1,6 +1,5 @@
 use domain::entity::PullRequest;
 
-use crate::classify::classify_pull_requests;
 use crate::sort::sort_by_updated_at_desc;
 
 pub struct ProcessedPrs {
@@ -8,15 +7,17 @@ pub struct ProcessedPrs {
     pub review_requests: Vec<PullRequest>,
 }
 
-pub fn process_pull_requests(login: &str, pull_requests: Vec<PullRequest>) -> ProcessedPrs {
-    let mut classified = classify_pull_requests(login, pull_requests);
-
-    sort_by_updated_at_desc(&mut classified.my_prs);
-    sort_by_updated_at_desc(&mut classified.review_requests);
+/// パーサーが分類済みの my_prs / review_requests を受け取り、ソートして返す。
+pub fn process_pull_requests(
+    mut my_prs: Vec<PullRequest>,
+    mut review_requests: Vec<PullRequest>,
+) -> ProcessedPrs {
+    sort_by_updated_at_desc(&mut my_prs);
+    sort_by_updated_at_desc(&mut review_requests);
 
     ProcessedPrs {
-        my_prs: classified.my_prs,
-        review_requests: classified.review_requests,
+        my_prs,
+        review_requests,
     }
 }
 
@@ -45,13 +46,13 @@ mod tests {
     }
 
     #[test]
-    fn process_multiple_prs_correctly() {
-        let prs = vec![
+    fn process_sorts_both_lists_by_updated_at_desc() {
+        let my_prs = vec![
             make_pr("alice", 1, "2026-01-01T00:00:00Z"),
-            make_pr("bob", 2, "2026-01-03T00:00:00Z"),
             make_pr("alice", 3, "2026-01-02T00:00:00Z"),
         ];
-        let result = process_pull_requests("alice", prs);
+        let review_requests = vec![make_pr("bob", 2, "2026-01-03T00:00:00Z")];
+        let result = process_pull_requests(my_prs, review_requests);
 
         assert_eq!(result.my_prs.len(), 2);
         assert_eq!(result.review_requests.len(), 1);
@@ -65,42 +66,42 @@ mod tests {
     }
 
     #[test]
-    fn process_empty_list_returns_empty() {
-        let result = process_pull_requests("alice", vec![]);
+    fn process_empty_lists_returns_empty() {
+        let result = process_pull_requests(vec![], vec![]);
         assert!(result.my_prs.is_empty());
         assert!(result.review_requests.is_empty());
     }
 
     #[test]
     fn process_only_my_prs() {
-        let prs = vec![
+        let my_prs = vec![
             make_pr("alice", 1, "2026-01-01T00:00:00Z"),
             make_pr("alice", 2, "2026-01-02T00:00:00Z"),
         ];
-        let result = process_pull_requests("alice", prs);
+        let result = process_pull_requests(my_prs, vec![]);
         assert_eq!(result.my_prs.len(), 2);
         assert!(result.review_requests.is_empty());
     }
 
     #[test]
     fn process_only_review_requests() {
-        let prs = vec![
+        let review_requests = vec![
             make_pr("bob", 1, "2026-01-01T00:00:00Z"),
             make_pr("charlie", 2, "2026-01-02T00:00:00Z"),
         ];
-        let result = process_pull_requests("alice", prs);
+        let result = process_pull_requests(vec![], review_requests);
         assert!(result.my_prs.is_empty());
         assert_eq!(result.review_requests.len(), 2);
     }
 
     #[test]
     fn review_requests_sorted_by_updated_at_desc() {
-        let prs = vec![
+        let review_requests = vec![
             make_pr("bob", 1, "2026-01-01T00:00:00Z"),
             make_pr("charlie", 2, "2026-01-03T00:00:00Z"),
             make_pr("dave", 3, "2026-01-02T00:00:00Z"),
         ];
-        let result = process_pull_requests("alice", prs);
+        let result = process_pull_requests(vec![], review_requests);
         assert_eq!(result.review_requests.len(), 3);
         assert_eq!(result.review_requests[0].number(), 2);
         assert_eq!(result.review_requests[1].number(), 3);
@@ -109,8 +110,8 @@ mod tests {
 
     #[test]
     fn pr_fields_preserved_after_processing() {
-        let prs = vec![make_pr("alice", 42, "2026-01-15T12:00:00Z")];
-        let result = process_pull_requests("alice", prs);
+        let my_prs = vec![make_pr("alice", 42, "2026-01-15T12:00:00Z")];
+        let result = process_pull_requests(my_prs, vec![]);
         let pr = &result.my_prs[0];
         assert_eq!(pr.number(), 42);
         assert_eq!(pr.author(), "alice");

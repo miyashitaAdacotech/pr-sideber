@@ -40,7 +40,7 @@ export function initializeApp(): AppServices {
 		storage,
 		fetchAndProcessPrs: async () => {
 			const raw = await githubApi.fetchPullRequests();
-			const processed = prProcessor.processPullRequests(raw.rawJson, "@me");
+			const processed = await prProcessor.processPullRequests(raw.rawJson, "@me");
 			return { ...processed, hasMore: raw.hasMore };
 		},
 	});

@@ -80,9 +80,16 @@ pub struct RepositoryRef {
     pub name_with_owner: String,
 }
 
-/// GraphQL レスポンスの JSON 文字列をパースし、PR ノードの Vec に変換する。
+/// パーサーの返り値。GraphQL クエリの myPrs / reviewRequested を分けた状態で保持する。
+#[derive(Debug)]
+pub struct ParsedPullRequests {
+    pub my_prs: Vec<PullRequest>,
+    pub review_requests: Vec<PullRequest>,
+}
+
+/// GraphQL レスポンスの JSON 文字列をパースし、myPrs と reviewRequested を分けて返す。
 /// null ノードはスキップする。
-pub fn parse_pull_request_nodes(json: &str) -> Result<Vec<PullRequest>, WasmError> {
+pub fn parse_pull_request_nodes(json: &str) -> Result<ParsedPullRequests, WasmError> {
     let response: GraphQLResponse = serde_json::from_str(json)?;
 
     let data = match response.data {
@@ -95,21 +102,24 @@ pub fn parse_pull_request_nodes(json: &str) -> Result<Vec<PullRequest>, WasmErro
         .review_requested
         .map_or_else(Vec::new, |conn| conn.edges);
 
-    let mut result = Vec::with_capacity(my_pr_edges.len() + review_edges.len());
-
+    let mut my_prs = Vec::with_capacity(my_pr_edges.len());
     for edge in my_pr_edges {
         if let Some(node) = edge.node {
-            result.push(convert_node_to_pull_request(node)?);
+            my_prs.push(convert_node_to_pull_request(node)?);
         }
     }
 
+    let mut review_requests = Vec::with_capacity(review_edges.len());
     for edge in review_edges {
         if let Some(node) = edge.node {
-            result.push(convert_node_to_pull_request(node)?);
+            review_requests.push(convert_node_to_pull_request(node)?);
         }
     }
 
-    Ok(result)
+    Ok(ParsedPullRequests {
+        my_prs,
+        review_requests,
+    })
 }
 
 /// 単一の PrNode を domain の PullRequest に変換する。
@@ -206,10 +216,11 @@ mod tests {
     fn parse_valid_pr_node_to_pull_request() {
         let result = parse_pull_request_nodes(valid_single_pr_json());
         assert!(result.is_ok(), "should parse valid JSON: {result:?}");
-        let prs = result.unwrap();
-        assert_eq!(prs.len(), 1);
+        let parsed = result.unwrap();
+        assert_eq!(parsed.my_prs.len(), 1);
+        assert!(parsed.review_requests.is_empty());
 
-        let pr = &prs[0];
+        let pr = &parsed.my_prs[0];
         assert_eq!(pr.id(), "PR_kwDOTest1");
         assert_eq!(pr.number(), 42);
         assert_eq!(pr.title(), "feat: add new feature");
@@ -262,8 +273,8 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].approval_status(), ApprovalStatus::Pending);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].approval_status(), ApprovalStatus::Pending);
     }
 
     #[test]
@@ -301,8 +312,8 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].ci_status(), CiStatus::None);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].ci_status(), CiStatus::None);
     }
 
     #[test]
@@ -334,8 +345,8 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].ci_status(), CiStatus::None);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].ci_status(), CiStatus::None);
     }
 
     #[test]
@@ -366,9 +377,9 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs.len(), 1, "null node should be skipped");
-        assert_eq!(prs[0].title(), "valid pr");
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs.len(), 1, "null node should be skipped");
+        assert_eq!(parsed.my_prs[0].title(), "valid pr");
     }
 
     #[test]
@@ -416,7 +427,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_edges_returns_empty_vec() {
+    fn empty_edges_returns_empty_parsed() {
         let json = r#"{
             "data": {
                 "myPrs": {
@@ -428,8 +439,9 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse empty edges");
-        assert!(prs.is_empty());
+        let parsed = parse_pull_request_nodes(json).expect("should parse empty edges");
+        assert!(parsed.my_prs.is_empty());
+        assert!(parsed.review_requests.is_empty());
     }
 
     #[test]
@@ -459,13 +471,13 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].additions(), 0);
-        assert_eq!(prs[0].deletions(), 0);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].additions(), 0);
+        assert_eq!(parsed.my_prs[0].deletions(), 0);
     }
 
     #[test]
-    fn both_my_prs_and_review_requested_are_parsed() {
+    fn both_my_prs_and_review_requested_are_parsed_separately() {
         let json = r#"{
             "data": {
                 "myPrs": {
@@ -509,10 +521,11 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs.len(), 2);
-        assert_eq!(prs[0].id(), "PR_1", "myPrs should come first");
-        assert_eq!(prs[1].id(), "PR_2", "reviewRequested should come second");
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs.len(), 1);
+        assert_eq!(parsed.my_prs[0].id(), "PR_1");
+        assert_eq!(parsed.review_requests.len(), 1);
+        assert_eq!(parsed.review_requests[0].id(), "PR_2");
     }
 
     #[test]
@@ -553,8 +566,11 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].approval_status(), ApprovalStatus::ChangesRequested);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(
+            parsed.my_prs[0].approval_status(),
+            ApprovalStatus::ChangesRequested
+        );
     }
 
     #[test]
@@ -584,8 +600,11 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].approval_status(), ApprovalStatus::ReviewRequired);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(
+            parsed.my_prs[0].approval_status(),
+            ApprovalStatus::ReviewRequired
+        );
     }
 
     #[test]
@@ -625,8 +644,8 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].ci_status(), CiStatus::Failed);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].ci_status(), CiStatus::Failed);
     }
 
     #[test]
@@ -666,8 +685,8 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].ci_status(), CiStatus::Pending);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].ci_status(), CiStatus::Pending);
     }
 
     #[test]
@@ -707,8 +726,8 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse");
-        assert_eq!(prs[0].ci_status(), CiStatus::Failed);
+        let parsed = parse_pull_request_nodes(json).expect("should parse");
+        assert_eq!(parsed.my_prs[0].ci_status(), CiStatus::Failed);
     }
 
     #[test]
@@ -779,9 +798,10 @@ mod tests {
             }
         }"#;
 
-        let prs = parse_pull_request_nodes(json).expect("should parse when myPrs is null");
-        assert_eq!(prs.len(), 1);
-        assert_eq!(prs[0].id(), "PR_1");
+        let parsed = parse_pull_request_nodes(json).expect("should parse when myPrs is null");
+        assert!(parsed.my_prs.is_empty());
+        assert_eq!(parsed.review_requests.len(), 1);
+        assert_eq!(parsed.review_requests[0].id(), "PR_1");
     }
 
     #[test]
@@ -811,9 +831,10 @@ mod tests {
             }
         }"#;
 
-        let prs =
+        let parsed =
             parse_pull_request_nodes(json).expect("should parse when reviewRequested is null");
-        assert_eq!(prs.len(), 1);
-        assert_eq!(prs[0].id(), "PR_1");
+        assert_eq!(parsed.my_prs.len(), 1);
+        assert_eq!(parsed.my_prs[0].id(), "PR_1");
+        assert!(parsed.review_requests.is_empty());
     }
 }

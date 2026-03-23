@@ -1,5 +1,6 @@
 import { processPullRequests as wasmProcessPullRequests } from "../../rust-core/crates/adapter-wasm/pkg/adapter_wasm.js";
 import type { PrProcessorPort, ProcessedPrsResult } from "../domain/ports/pr-processor.port";
+import { initializeWasm } from "./index";
 
 function isProcessedPrsResult(value: unknown): value is ProcessedPrsResult {
 	return (
@@ -8,7 +9,8 @@ function isProcessedPrsResult(value: unknown): value is ProcessedPrsResult {
 }
 
 export class WasmPrProcessor implements PrProcessorPort {
-	processPullRequests(rawJson: string, login: string): ProcessedPrsResult {
+	async processPullRequests(rawJson: string, login: string): Promise<ProcessedPrsResult> {
+		await initializeWasm();
 		const result: unknown = wasmProcessPullRequests(rawJson, login);
 		if (!isProcessedPrsResult(result)) {
 			throw new Error("WASM processPullRequests returned unexpected structure");

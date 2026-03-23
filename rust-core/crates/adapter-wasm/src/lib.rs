@@ -35,16 +35,17 @@ fn to_pr_list_dto(prs: Vec<domain::entity::PullRequest>) -> PrListDto {
 ///
 /// # Arguments
 /// * `raw_json` - GitHub GraphQL API のレスポンス JSON 文字列
+/// * `login` - WASM API 互換性のために残しているが、分類には使用しない
 ///
 /// # Returns
 /// * `my_prs` - 自分が author の PR リスト (JsValue にシリアライズ)
 /// * `review_requests` - レビューリクエストされた PR リスト (JsValue にシリアライズ)
 #[wasm_bindgen(js_name = "processPullRequests")]
-pub fn process_pull_requests(raw_json: &str, login: &str) -> Result<JsValue, JsError> {
-    let prs =
+pub fn process_pull_requests(raw_json: &str, _login: &str) -> Result<JsValue, JsError> {
+    let parsed =
         parser::parse_pull_request_nodes(raw_json).map_err(|e| JsError::new(&e.to_string()))?;
 
-    let processed = usecase::process::process_pull_requests(login, prs);
+    let processed = usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
 
     serde_wasm_bindgen::to_value(&ProcessedPrsResult {
         my_prs: to_pr_list_dto(processed.my_prs),
@@ -104,8 +105,9 @@ mod tests {
             }
         }"#;
 
-        let prs = parser::parse_pull_request_nodes(json).expect("should parse");
-        let processed = usecase::process::process_pull_requests("alice", prs);
+        let parsed = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed =
+            usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
         assert_eq!(processed.my_prs.len(), 1);
         assert_eq!(processed.my_prs[0].number(), 1);
         assert!(processed.review_requests.is_empty());
@@ -120,8 +122,9 @@ mod tests {
             }
         }"#;
 
-        let prs = parser::parse_pull_request_nodes(json).expect("should parse");
-        let processed = usecase::process::process_pull_requests("alice", prs);
+        let parsed = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed =
+            usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
         assert!(processed.my_prs.is_empty());
         assert!(processed.review_requests.is_empty());
     }
@@ -133,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_and_process_classifies_by_author() {
+    fn parse_and_process_separates_by_graphql_query() {
         let json = r#"{
             "data": {
                 "myPrs": {
@@ -177,9 +180,12 @@ mod tests {
             }
         }"#;
 
-        let prs = parser::parse_pull_request_nodes(json).expect("should parse");
-        let processed = usecase::process::process_pull_requests("alice", prs);
+        let parsed = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed =
+            usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
         assert_eq!(processed.my_prs.len(), 1);
+        assert_eq!(processed.my_prs[0].id(), "PR_1");
         assert_eq!(processed.review_requests.len(), 1);
+        assert_eq!(processed.review_requests[0].id(), "PR_2");
     }
 }

@@ -6,12 +6,20 @@ const INVALID_JSON: &str = include_str!("fixtures/invalid_response.json");
 
 #[test]
 fn valid_fixture_produces_correct_prs() {
-    let prs = parse_pull_request_nodes(VALID_JSON).expect("valid fixture should parse");
-    // 2 myPrs + 1 reviewRequested = 3 total
-    assert_eq!(prs.len(), 3, "should have 3 PRs total");
+    let parsed = parse_pull_request_nodes(VALID_JSON).expect("valid fixture should parse");
+    assert_eq!(parsed.my_prs.len(), 2, "should have 2 myPrs");
+    assert_eq!(
+        parsed.review_requests.len(),
+        1,
+        "should have 1 reviewRequested"
+    );
 
-    // PR #10
-    let pr10 = prs.iter().find(|p| p.number() == 10).expect("PR #10");
+    // PR #10 (myPrs)
+    let pr10 = parsed
+        .my_prs
+        .iter()
+        .find(|p| p.number() == 10)
+        .expect("PR #10");
     assert_eq!(pr10.title(), "feat: add authentication");
     assert_eq!(pr10.author(), "alice");
     assert_eq!(pr10.repository(), "owner/repo");
@@ -19,16 +27,20 @@ fn valid_fixture_produces_correct_prs() {
     assert_eq!(pr10.additions(), 150);
     assert_eq!(pr10.deletions(), 30);
 
-    // PR #5 (review requested)
-    let pr5 = prs.iter().find(|p| p.number() == 5).expect("PR #5");
+    // PR #5 (reviewRequested)
+    let pr5 = parsed
+        .review_requests
+        .iter()
+        .find(|p| p.number() == 5)
+        .expect("PR #5");
     assert_eq!(pr5.author(), "bob");
     assert_eq!(pr5.repository(), "other/lib");
 }
 
 #[test]
-fn valid_fixture_processes_to_classified_lists() {
-    let prs = parse_pull_request_nodes(VALID_JSON).expect("valid fixture should parse");
-    let processed = usecase::process::process_pull_requests("alice", prs);
+fn valid_fixture_processes_to_sorted_lists() {
+    let parsed = parse_pull_request_nodes(VALID_JSON).expect("valid fixture should parse");
+    let processed = usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
 
     assert_eq!(processed.my_prs.len(), 2, "alice has 2 PRs");
     assert_eq!(processed.review_requests.len(), 1, "1 review request");
@@ -43,10 +55,11 @@ fn valid_fixture_processes_to_classified_lists() {
 
 #[test]
 fn empty_fixture_returns_empty_lists() {
-    let prs = parse_pull_request_nodes(EMPTY_JSON).expect("empty fixture should parse");
-    assert!(prs.is_empty());
+    let parsed = parse_pull_request_nodes(EMPTY_JSON).expect("empty fixture should parse");
+    assert!(parsed.my_prs.is_empty());
+    assert!(parsed.review_requests.is_empty());
 
-    let processed = usecase::process::process_pull_requests("alice", prs);
+    let processed = usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
     assert!(processed.my_prs.is_empty());
     assert!(processed.review_requests.is_empty());
 }

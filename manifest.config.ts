@@ -6,6 +6,10 @@ export default defineManifest({
 	version: "0.0.1",
 	description: "GitHub PR Dashboard in Chrome Side Panel",
 	permissions: ["sidePanel", "storage", "alarms"],
+	host_permissions: ["https://github.com/*", "https://api.github.com/*"],
+	content_security_policy: {
+		extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+	},
 	side_panel: {
 		default_path: "src/sidepanel/index.html",
 	},
