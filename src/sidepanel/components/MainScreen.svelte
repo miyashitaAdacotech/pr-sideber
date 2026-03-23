@@ -2,8 +2,8 @@
 	import { untrack } from "svelte";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
-	import { formatRelativeTime } from "../../shared/utils/time";
 	import LogoutButton from "./LogoutButton.svelte";
+	import RelativeTime from "./RelativeTime.svelte";
 	import PrSection from "./PrSection.svelte";
 
 	type Props = {
@@ -94,7 +94,7 @@
 		</div>
 		<div class="header-right">
 			{#if lastUpdatedAt}
-				<span class="last-updated">{formatRelativeTime(lastUpdatedAt)}</span>
+				<span class="last-updated"><RelativeTime dateStr={lastUpdatedAt} /></span>
 			{/if}
 			<LogoutButton {onLogout} />
 		</div>
