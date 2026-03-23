@@ -5,7 +5,9 @@
 	"version": "0.0.1",
 	"scripts": {
 		"dev": "vite",
-		"build": "vite build",
+		"build": "GITHUB_CLIENT_ID=Ov23liCgU4UCzg03tnCK vite build",
+		"build:wasm": "cd rust-core/crates/adapter-wasm && wasm-pack build --target web",
+		"build:all": "pnpm build:wasm && pnpm build",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run",
 		"test:watch": "vitest",
