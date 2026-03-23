@@ -3,7 +3,7 @@
  * マスター SVG (public/icons/icon.svg) から 16x16, 48x48, 128x128 の PNG を生成する。
  * @resvg/resvg-js を使用して SVG を正確にラスタライズする。
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,21 +46,26 @@ async function main() {
 	console.log(`Output dir: ${ICONS_DIR}`);
 	console.log("");
 
+	if (!existsSync(SVG_PATH)) {
+		console.error(`ERROR: Source SVG not found: ${SVG_PATH}`);
+		process.exit(1);
+	}
+
 	// Try @resvg/resvg-js first, then sharp as fallback
 	try {
 		await generateWithResvg();
 		console.log("\nAll icons generated successfully with @resvg/resvg-js!");
 		return;
-	} catch (e) {
-		console.log(`@resvg/resvg-js not available: ${e.message}`);
+	} catch (_e) {
+		console.log("@resvg/resvg-js not available (falling back to sharp)");
 	}
 
 	try {
 		await generateWithSharp();
 		console.log("\nAll icons generated successfully with sharp!");
 		return;
-	} catch (e) {
-		console.log(`sharp not available: ${e.message}`);
+	} catch (_e) {
+		console.log("sharp not available");
 	}
 
 	console.error("\nERROR: No SVG-to-PNG conversion library available.");
