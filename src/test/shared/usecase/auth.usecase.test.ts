@@ -182,7 +182,6 @@ describe("auth usecase", () => {
 			expect(error).toBeInstanceOf(Error);
 			expect((error as Error).message).toBe("fetch failed");
 			expect(mockSendMessage).toHaveBeenCalledTimes(3);
-			expect(onStateChange).toHaveBeenCalledWith({ phase: "error", message: "fetch failed" });
 		});
 
 		it("should retry on RUNTIME_ERROR response then succeed", async () => {
@@ -254,10 +253,6 @@ describe("auth usecase", () => {
 			expect((error as Error).message).toBe("Invalid device code");
 			// リトライなし: 1回だけ呼ばれる
 			expect(mockSendMessage).toHaveBeenCalledTimes(1);
-			expect(onStateChange).toHaveBeenCalledWith({
-				phase: "error",
-				message: "Invalid device code",
-			});
 		});
 
 		it("should expire when deadline is exceeded during retry wait", async () => {
@@ -309,10 +304,6 @@ describe("auth usecase", () => {
 			expect(error).toBeInstanceOf(Error);
 			expect((error as Error).message).toBe("Service worker restarted");
 			expect(mockSendMessage).toHaveBeenCalledTimes(3);
-			expect(onStateChange).toHaveBeenCalledWith({
-				phase: "error",
-				message: "Service worker restarted",
-			});
 		});
 	});
 

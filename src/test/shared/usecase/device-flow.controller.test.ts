@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeviceCodeResponse, PollResult } from "../../../domain/types/auth";
+import { AuthError } from "../../../shared/types/auth";
 import type { DeviceFlowState } from "../../../shared/usecase/auth.usecase";
 import { createDeviceFlowController } from "../../../shared/usecase/device-flow.controller";
 
@@ -54,7 +55,9 @@ describe("device-flow controller", () => {
 	});
 
 	it("startFlow() 失敗時に state が error になること", async () => {
-		mockRequestDeviceCode.mockRejectedValue(new Error("Network failure"));
+		mockRequestDeviceCode.mockRejectedValue(
+			new AuthError("device_code_request_failed", "Network failure"),
+		);
 
 		const controller = buildController();
 
@@ -62,9 +65,8 @@ describe("device-flow controller", () => {
 
 		const state = controller.getState();
 		expect(state.phase).toBe("error");
-		if (state.phase === "error") {
-			expect(state.message).toBe("Network failure");
-		}
+		const errorState = state as Extract<DeviceFlowState, { phase: "error" }>;
+		expect(errorState.message).toBe("デバイスコードの取得に失敗しました。もう一度お試しください。");
 	});
 
 	it("waitForAuthorization() が保持された deviceCode で authUseCase.waitForAuthorization を呼ぶこと", async () => {
@@ -279,9 +281,8 @@ describe("device-flow controller", () => {
 		// catch 防御により error state に遷移している
 		const state = controller.getState();
 		expect(state.phase).toBe("error");
-		if (state.phase === "error") {
-			expect(state.message).toBe("Unexpected crash");
-		}
+		const errorState = state as Extract<DeviceFlowState, { phase: "error" }>;
+		expect(errorState.message).toBe("エラーが発生しました。もう一度お試しください。");
 	});
 
 	it("catch 防御: onStateChange で expired に遷移済みの場合、error に上書きしないこと", async () => {
@@ -304,5 +305,73 @@ describe("device-flow controller", () => {
 
 		// expired のまま、error に上書きされていない
 		expect(controller.getState()).toEqual({ phase: "expired" });
+	});
+
+	it.each([
+		["authorization_failed", "認証に失敗しました。もう一度お試しください。"],
+		["token_exchange_failed", "トークンの取得に失敗しました。もう一度お試しください。"],
+		["device_code_request_failed", "デバイスコードの取得に失敗しました。もう一度お試しください。"],
+		[
+			"device_code_validation_failed",
+			"デバイスコードの検証に失敗しました。もう一度お試しください。",
+		],
+		["device_flow_expired", "認証の有効期限が切れました。もう一度お試しください。"],
+		["device_flow_denied", "認証が拒否されました。"],
+	] as const)(
+		"startFlow() で AuthError code=%s に対応する固定メッセージが表示されること",
+		async (code, expectedMessage) => {
+			mockRequestDeviceCode.mockRejectedValue(new AuthError(code, `raw: ${code}`));
+
+			const controller = buildController();
+			await controller.startFlow();
+
+			const state = controller.getState();
+			expect(state.phase).toBe("error");
+			const errorState = state as Extract<DeviceFlowState, { phase: "error" }>;
+			expect(errorState.message).toBe(expectedMessage);
+		},
+	);
+
+	it("未知の AuthError.code にフォールバックメッセージが表示されること", async () => {
+		// AuthErrorCode に存在しないコードを強制的に渡す
+		mockRequestDeviceCode.mockRejectedValue(
+			new AuthError("unknown_code" as never, "Something unknown happened"),
+		);
+
+		const controller = buildController();
+		await controller.startFlow();
+
+		const state = controller.getState();
+		expect(state.phase).toBe("error");
+		const errorState = state as Extract<DeviceFlowState, { phase: "error" }>;
+		expect(errorState.message).toBe("エラーが発生しました。もう一度お試しください。");
+	});
+
+	it("waitForAuthorization() で AuthError が throw された場合に固定メッセージが表示されること", async () => {
+		mockRequestDeviceCode.mockResolvedValue(deviceCodeResponse);
+		mockWaitForAuthorization.mockRejectedValue(
+			new AuthError("token_exchange_failed", "Raw error message"),
+		);
+
+		const controller = buildController();
+		await controller.startFlow();
+		await controller.waitForAuthorization();
+
+		const state = controller.getState();
+		expect(state.phase).toBe("error");
+		const errorState = state as Extract<DeviceFlowState, { phase: "error" }>;
+		expect(errorState.message).toBe("トークンの取得に失敗しました。もう一度お試しください。");
+	});
+
+	it("AuthError でない Error にフォールバックメッセージが表示されること", async () => {
+		mockRequestDeviceCode.mockRejectedValue(new TypeError("Cannot read properties of undefined"));
+
+		const controller = buildController();
+		await controller.startFlow();
+
+		const state = controller.getState();
+		expect(state.phase).toBe("error");
+		const errorState = state as Extract<DeviceFlowState, { phase: "error" }>;
+		expect(errorState.message).toBe("エラーが発生しました。もう一度お試しください。");
 	});
 });
