@@ -195,6 +195,70 @@ assert_allowed "29: set -euo pipefail は許可 (set | grep ではない)" \
 assert_allowed "30: export 文字列を含むが環境変数ダンプではない" \
   'echo "export data to file"'
 
+# --- Issue #72: GraphQL mutation ホワイトリスト ---
+
+echo ""
+echo "=== GraphQL mutation ホワイトリスト (#72) ==="
+
+# ブロックすべきケース: 許可外 mutation
+assert_blocked "31: 許可外 mutation deleteProjectV2Item をブロック" \
+  'gh api graphql -f query='"'"'mutation { deleteProjectV2Item(input: { itemId: "xxx" }) { deletedItemId } }'"'"''
+
+assert_blocked "32: 許可外 mutation createIssue をブロック" \
+  'gh api graphql -f query='"'"'mutation { createIssue(input: { repositoryId: "xxx", title: "test" }) { issue { id } } }'"'"''
+
+assert_blocked "33: 許可外 mutation deleteIssue をブロック" \
+  'gh api graphql -f query='"'"'mutation { deleteIssue(input: { issueId: "xxx" }) { repository { id } } }'"'"''
+
+assert_blocked "34: 許可外 mutation transferIssue をブロック" \
+  'gh api graphql -f query='"'"'mutation { transferIssue(input: { issueId: "xxx", repositoryId: "yyy" }) { issue { id } } }'"'"''
+
+# NOTE: 以下のテストは現時点 (プロダクションコード未実装) では素通りで PASS する。
+# mutation ブロックロジック実装後も、ホワイトリスト内なので引き続き PASS する想定。
+assert_allowed "35: ホワイトリスト mutation addProjectV2ItemById を許可" \
+  'gh api graphql -f query='"'"'mutation { addProjectV2ItemById(input: { projectId: "PVT_xxx", contentId: "I_xxx" }) { item { id } } }'"'"''
+
+assert_allowed "36: ホワイトリスト mutation updateProjectV2ItemFieldValue を許可" \
+  'gh api graphql -f query='"'"'mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_xxx", itemId: "PVTI_xxx", fieldId: "PVTSSF_xxx", value: { singleSelectOptionId: "xxx" } }) { projectV2Item { id } } }'"'"''
+
+assert_allowed "37: ホワイトリスト mutation addBlockedBy を許可" \
+  'gh api graphql -f query='"'"'mutation { addBlockedBy(input: { blockedByIssueId: "xxx", issueId: "yyy" }) { blockedByIssue { id } } }'"'"''
+
+assert_allowed "38: ホワイトリスト mutation removeBlockedBy を許可" \
+  'gh api graphql -f query='"'"'mutation { removeBlockedBy(input: { blockedByIssueId: "xxx", issueId: "yyy" }) { unblockedIssue { id } } }'"'"''
+
+assert_allowed "39: ホワイトリスト mutation addSubIssue を許可" \
+  'gh api graphql -f query='"'"'mutation { addSubIssue(input: { issueId: "xxx", subIssueId: "yyy" }) { issue { id } } }'"'"''
+
+# 許可すべきケース: mutation ではない / gh api graphql ではない
+assert_allowed "40: GraphQL query (mutation ではない) は許可" \
+  'gh api graphql -f query='"'"'{ repository(owner: "kohchan0913", name: "pr-sideber") { issue(number: 1) { id } } }'"'"''
+
+assert_allowed "41: mutation 文字列を含むが gh api graphql ではないコマンドは許可" \
+  'echo "mutation test string"'
+
+# エッジケース: スペースなし / 大文字小文字
+assert_blocked "42: mutation{スペースなし の許可外 mutation をブロック" \
+  'gh api graphql -f query='"'"'mutation{deleteProjectV2Item(input:{itemId:"xxx"}){deletedItemId}}'"'"''
+
+assert_blocked "43: MUTATION (大文字) の許可外 mutation をブロック" \
+  'gh api graphql -f query='"'"'MUTATION { deleteProjectV2Item(input: { itemId: "xxx" }) { deletedItemId } }'"'"''
+
+assert_allowed "44: mutation{addProjectV2ItemById スペースなしで許可" \
+  'gh api graphql -f query='"'"'mutation{addProjectV2ItemById(input:{projectId:"PVT_xxx",contentId:"I_xxx"}){item{id}}}'"'"''
+
+assert_allowed "45: 明示的 query キーワード付き GraphQL は許可" \
+  'gh api graphql -f query='"'"'query { repository(owner: "x", name: "y") { id } }'"'"''
+
+assert_allowed "46: grep mutation コマンドは許可" \
+  'grep mutation src/some-file.ts'
+
+assert_allowed "47: MUTATION キーワードでもホワイトリスト mutation は許可" \
+  'gh api graphql -f query='"'"'MUTATION { addProjectV2ItemById(input: { projectId: "PVT_xxx", contentId: "I_xxx" }) { item { id } } }'"'"''
+
+assert_blocked "48: Named mutation はブロック (mutation 名と間違えるリスク)" \
+  'gh api graphql -f query='"'"'mutation MyOperation { deleteProjectV2Item(input: { itemId: "xxx" }) { deletedItemId } }'"'"''
+
 # --- 結果サマリ ---
 
 echo ""
