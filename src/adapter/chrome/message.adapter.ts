@@ -1,6 +1,13 @@
 import type { SendMessage } from "../../shared/ports/message.port";
 import type { MessageType, RequestMap, ResponseMessage } from "../../shared/types/messages";
 
+export function subscribeToMessages(callback: (message: unknown) => void): () => void {
+	chrome.runtime.onMessage.addListener(callback);
+	return () => {
+		chrome.runtime.onMessage.removeListener(callback);
+	};
+}
+
 export const chromeSendMessage: SendMessage = async <T extends MessageType>(
 	...args: RequestMap[T] extends undefined ? [type: T] : [type: T, payload: RequestMap[T]]
 ): Promise<ResponseMessage<T>> => {

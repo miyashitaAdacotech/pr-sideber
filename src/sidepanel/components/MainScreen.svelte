@@ -2,6 +2,7 @@
 	import { untrack } from "svelte";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
+	import { isCacheUpdatedEvent } from "../../shared/types/events";
 	import LogoutButton from "./LogoutButton.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
 	import PrSection from "./PrSection.svelte";
@@ -10,9 +11,11 @@
 		onLogout: () => Promise<void>;
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
 		getCachedPrs: () => Promise<CachedPrData | null>;
+		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
+		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
 	};
 
-	const { onLogout, fetchPrs, getCachedPrs }: Props = $props();
+	const { onLogout, fetchPrs, getCachedPrs, loadPrsWithCache, subscribeToMessages }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -32,11 +35,12 @@
 		}
 	}
 
+	// 初期ロード: キャッシュ → loadPrsWithCache (新鮮度チェック付き)
 	$effect(() => {
 		let cancelled = false;
 
 		untrack(async () => {
-			// まずキャッシュから表示を試みる
+			// まずキャッシュから表示
 			try {
 				const cached = await getCachedPrs();
 				if (!cancelled && cached) {
@@ -50,12 +54,16 @@
 				}
 			}
 
-			// バックグラウンドで最新データを取得
+			// loadPrsWithCache で新鮮度チェック付きフェッチ
 			try {
-				const result = await fetchPrs();
-				if (!cancelled) {
+				const result = await loadPrsWithCache(2);
+				if (!cancelled && result) {
 					data = result;
-					lastUpdatedAt = new Date().toISOString();
+					// loadPrsWithCache 内でキャッシュが更新されているので getCachedPrs で最新の lastUpdatedAt を取得
+					const freshCache = await getCachedPrs();
+					if (!cancelled && freshCache) {
+						lastUpdatedAt = freshCache.lastUpdatedAt;
+					}
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
@@ -70,6 +78,32 @@
 
 		return () => {
 			cancelled = true;
+		};
+	});
+
+	// CACHE_UPDATED リスナー
+	$effect(() => {
+		function onMessage(message: unknown): void {
+			if (isCacheUpdatedEvent(message)) {
+				getCachedPrs()
+					.then((cached) => {
+						if (cached) {
+							data = cached.data;
+							lastUpdatedAt = cached.lastUpdatedAt;
+						}
+					})
+					.catch((err: unknown) => {
+						if (import.meta.env.DEV) {
+							console.warn("[MainScreen] cache reload failed:", err);
+						}
+					});
+			}
+		}
+
+		const unsubscribe = subscribeToMessages(onMessage);
+
+		return () => {
+			unsubscribe();
 		};
 	});
 </script>

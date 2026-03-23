@@ -10,8 +10,9 @@
 		authUseCase: Pick<ReturnType<typeof createAuthUseCase>, "checkAuth" | "logout">;
 		prUseCase: ReturnType<typeof createPrUseCase>;
 		deviceFlowController: DeviceFlowController;
+		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
 	};
-	const { authUseCase, prUseCase, deviceFlowController }: Props = $props();
+	const { authUseCase, prUseCase, deviceFlowController, subscribeToMessages }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -51,7 +52,7 @@
 		<p>Loading...</p>
 	</div>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} getCachedPrs={() => prUseCase.getCachedPrs()} />
+	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}

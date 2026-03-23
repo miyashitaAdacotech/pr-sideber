@@ -1,5 +1,5 @@
+import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 import type { DeviceCodeResponse, PollResult } from "../../domain/types/auth";
-import type { FetchRawPullRequestsResult } from "../../domain/types/github";
 
 export const MESSAGE_TYPES = [
 	"AUTH_LOGOUT",
@@ -28,7 +28,7 @@ export type ResponseDataMap = {
 	AUTH_STATUS: { isAuthenticated: boolean };
 	AUTH_DEVICE_CODE: DeviceCodeResponse;
 	AUTH_DEVICE_POLL: PollResult;
-	FETCH_PRS: FetchRawPullRequestsResult;
+	FETCH_PRS: ProcessedPrsResult & { hasMore: boolean };
 	UPDATE_BADGE: undefined;
 };
 

@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+import { isCacheUpdatedEvent } from "../../../shared/types/events";
+
+describe("isCacheUpdatedEvent", () => {
+	it("should return true for a valid CacheUpdatedEvent", () => {
+		const event = {
+			type: "CACHE_UPDATED",
+			lastUpdatedAt: "2026-03-22T12:00:00.000Z",
+		};
+		expect(isCacheUpdatedEvent(event)).toBe(true);
+	});
+
+	it("should return false when type is not CACHE_UPDATED", () => {
+		const event = {
+			type: "SOME_OTHER_EVENT",
+			lastUpdatedAt: "2026-03-22T12:00:00.000Z",
+		};
+		expect(isCacheUpdatedEvent(event)).toBe(false);
+	});
+
+	it("should return false when lastUpdatedAt is missing", () => {
+		const event = { type: "CACHE_UPDATED" };
+		expect(isCacheUpdatedEvent(event)).toBe(false);
+	});
+
+	it("should return false when lastUpdatedAt is not a string", () => {
+		const event = { type: "CACHE_UPDATED", lastUpdatedAt: 12345 };
+		expect(isCacheUpdatedEvent(event)).toBe(false);
+	});
+
+	it("should return false for null", () => {
+		expect(isCacheUpdatedEvent(null)).toBe(false);
+	});
+
+	it("should return false for undefined", () => {
+		expect(isCacheUpdatedEvent(undefined)).toBe(false);
+	});
+
+	it("should return false for non-object values", () => {
+		expect(isCacheUpdatedEvent("string")).toBe(false);
+		expect(isCacheUpdatedEvent(42)).toBe(false);
+		expect(isCacheUpdatedEvent(true)).toBe(false);
+	});
+
+	it("should return true when extra properties are present", () => {
+		const event = {
+			type: "CACHE_UPDATED",
+			lastUpdatedAt: "2026-03-22T12:00:00.000Z",
+			extraField: "should be ignored",
+			anotherExtra: 42,
+		};
+		expect(isCacheUpdatedEvent(event)).toBe(true);
+	});
+
+	it("should return false when lastUpdatedAt is not a valid ISO 8601 date", () => {
+		const event = {
+			type: "CACHE_UPDATED",
+			lastUpdatedAt: "not-a-date",
+		};
+		expect(isCacheUpdatedEvent(event)).toBe(false);
+	});
+
+	it("should return false when lastUpdatedAt is an empty string", () => {
+		const event = {
+			type: "CACHE_UPDATED",
+			lastUpdatedAt: "",
+		};
+		expect(isCacheUpdatedEvent(event)).toBe(false);
+	});
+});

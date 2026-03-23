@@ -17,6 +17,7 @@ describe("auto-refresh usecase", () => {
 		remove: ReturnType<typeof vi.fn>;
 	};
 	let mockFetchAndProcessPrs: ReturnType<typeof vi.fn>;
+	let mockNotifyCacheUpdated: ReturnType<typeof vi.fn>;
 	let capturedAlarmCallback: ((name: string) => void) | undefined;
 	const mockUnsubscribe = vi.fn();
 
@@ -66,6 +67,7 @@ describe("auto-refresh usecase", () => {
 		};
 
 		mockFetchAndProcessPrs = vi.fn().mockResolvedValue(mockProcessedResult);
+		mockNotifyCacheUpdated = vi.fn().mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
@@ -78,15 +80,16 @@ describe("auto-refresh usecase", () => {
 			alarm: mockAlarm,
 			storage: mockStorage,
 			fetchAndProcessPrs: mockFetchAndProcessPrs,
+			notifyCacheUpdated: mockNotifyCacheUpdated,
 		});
 	}
 
 	describe("start", () => {
-		it("should create an alarm named 'pr-refresh' with 5-minute interval", async () => {
+		it("should create an alarm named 'pr-refresh' with 2-minute interval", async () => {
 			const useCase = createUseCase();
 			await useCase.start();
 
-			expect(mockAlarm.create).toHaveBeenCalledWith("pr-refresh", 5);
+			expect(mockAlarm.create).toHaveBeenCalledWith("pr-refresh", 2);
 		});
 
 		it("should register an onAlarm listener", async () => {
@@ -149,6 +152,23 @@ describe("auto-refresh usecase", () => {
 			expect(new Date(savedData.lastUpdatedAt).toISOString()).toBe(savedData.lastUpdatedAt);
 		});
 
+		it("should call notifyCacheUpdated with lastUpdatedAt after successful refresh", async () => {
+			const useCase = createUseCase();
+			await useCase.refresh();
+
+			expect(mockNotifyCacheUpdated).toHaveBeenCalledWith("2026-03-22T12:00:00.000Z");
+		});
+
+		it("should still succeed when notifyCacheUpdated throws", async () => {
+			mockNotifyCacheUpdated.mockRejectedValue(new Error("Notification failed"));
+
+			const useCase = createUseCase();
+			await expect(useCase.refresh()).resolves.not.toThrow();
+
+			expect(mockFetchAndProcessPrs).toHaveBeenCalledTimes(1);
+			expect(mockStorage.set).toHaveBeenCalledTimes(1);
+		});
+
 		it("should not update cache when fetch fails, and propagate the error", async () => {
 			mockFetchAndProcessPrs.mockRejectedValue(new Error("API error"));
 
@@ -188,14 +208,13 @@ describe("auto-refresh usecase", () => {
 		function createUseCaseWithCallback(
 			onRefreshComplete: (data: ProcessedPrsResult & { hasMore: boolean }) => void,
 		) {
-			// onRefreshComplete は未実装のフィールド。RED フェーズでは型定義を変更しないため cast で渡す
-			const deps = {
+			return createAutoRefreshUseCase({
 				alarm: mockAlarm,
 				storage: mockStorage,
 				fetchAndProcessPrs: mockFetchAndProcessPrs,
+				notifyCacheUpdated: mockNotifyCacheUpdated,
 				onRefreshComplete,
-			} as Parameters<typeof createAutoRefreshUseCase>[0];
-			return createAutoRefreshUseCase(deps);
+			});
 		}
 
 		it("should call onRefreshComplete with fetched data after successful refresh", async () => {

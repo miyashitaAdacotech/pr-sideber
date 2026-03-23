@@ -16,7 +16,9 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
 
-export function createMessageHandler(services: Pick<AppServices, "auth" | "githubApi" | "badge">) {
+export function createMessageHandler(
+	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge">,
+) {
 	return (
 		message: unknown,
 		sender: chrome.runtime.MessageSender,
@@ -37,7 +39,7 @@ export function createMessageHandler(services: Pick<AppServices, "auth" | "githu
 }
 
 async function handleMessage(
-	services: Pick<AppServices, "auth" | "githubApi" | "badge">,
+	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge">,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
 ): Promise<void> {
@@ -79,12 +81,12 @@ async function handleMessage(
 				break;
 			}
 			case "FETCH_PRS": {
-				const result = await services.githubApi.fetchPullRequests();
-				sendResponse({ ok: true, data: result });
+				const raw = await services.githubApi.fetchPullRequests();
+				const processed = await services.prProcessor.processPullRequests(raw.rawJson);
+				sendResponse({ ok: true, data: { ...processed, hasMore: raw.hasMore } });
 				break;
 			}
 			case "UPDATE_BADGE": {
-				// 将来 sidepanel からの手動更新用に予約。現在の主経路は bootstrap.ts の onRefreshComplete コールバック
 				const msg = message as RequestMessage<"UPDATE_BADGE">;
 				const { reviewRequestCount } = msg.payload;
 
