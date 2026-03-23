@@ -4,22 +4,22 @@
 	border-radius: 9999px;
 	font-size: 0.625rem;
 	font-weight: 600;
-	color: #fff;
+	color: var(--color-badge-text, #fff);
 	line-height: 1.4;
 }
 
 .badge-green {
-	background-color: #28a745;
+	background-color: var(--color-badge-green, #3fb950);
 }
 
 .badge-red {
-	background-color: #d73a49;
+	background-color: var(--color-badge-red, #f85149);
 }
 
 .badge-yellow {
-	background-color: #dbab09;
+	background-color: var(--color-badge-yellow, #d29922);
 }
 
 .badge-gray {
-	background-color: #586069;
+	background-color: var(--color-badge-gray, #8b949e);
 }

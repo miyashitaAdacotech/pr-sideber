@@ -47,9 +47,22 @@
 </script>
 
 {#if loading}
-	<p>Loading...</p>
+	<div class="loading">
+		<p>Loading...</p>
+	</div>
 {:else if authenticated}
 	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs("@me")} getCachedPrs={() => prUseCase.getCachedPrs()} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}
+
+<style>
+	.loading {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		min-height: 100vh;
+		color: var(--color-text-secondary);
+		font-size: 0.875rem;
+	}
+</style>

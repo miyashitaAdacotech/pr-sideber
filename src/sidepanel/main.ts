@@ -1,3 +1,4 @@
+import "./styles/global.css";
 import { mount } from "svelte";
 import { chromeSendMessage } from "../adapter/chrome/message.adapter";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";

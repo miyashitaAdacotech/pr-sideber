@@ -39,7 +39,7 @@
 
 <style>
 	.pr-section {
-		margin-bottom: 1rem;
+		margin-bottom: 0.75rem;
 	}
 
 	.section-header {
@@ -47,44 +47,52 @@
 		align-items: center;
 		gap: 0.5rem;
 		width: 100%;
-		padding: 0.5rem 0;
+		padding: 0.375rem 0.5rem;
 		background: none;
 		border: none;
 		cursor: pointer;
 		text-align: left;
+		border-radius: 4px;
+		transition: background 0.15s;
+		color: var(--color-text-primary);
 	}
 
 	.section-header:hover {
-		background: #f6f8fa;
+		background: var(--color-bg-hover);
+	}
+
+	.section-header:active {
+		background: var(--color-bg-secondary);
 	}
 
 	.toggle-icon {
-		font-size: 0.75rem;
-		color: #586069;
+		font-size: 0.625rem;
+		color: var(--color-text-secondary);
 	}
 
 	.section-title {
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 600;
 		margin: 0;
 		flex: 1;
+		color: var(--color-text-primary);
 	}
 
 	.section-count {
-		font-size: 0.75rem;
-		color: #586069;
-		background: #e1e4e8;
-		padding: 0.125rem 0.5rem;
+		font-size: 0.6875rem;
+		color: var(--color-text-secondary);
+		background: var(--color-bg-secondary);
+		padding: 0.0625rem 0.375rem;
 		border-radius: 10px;
 	}
 
 	.section-body {
-		padding-left: 1.25rem;
+		padding-left: 1rem;
 	}
 
 	.empty-message {
-		color: #586069;
-		font-size: 0.875rem;
+		color: var(--color-text-secondary);
+		font-size: 0.8125rem;
 		font-style: italic;
 	}
 </style>

@@ -32,14 +32,19 @@
 
 <style>
 	.pr-item {
-		padding: 0.5rem 0;
-		border-bottom: 1px solid #e1e4e8;
+		padding: 0.375rem 0.5rem;
+		border-bottom: 1px solid var(--color-border-primary);
+		transition: background 0.15s;
+	}
+
+	.pr-item:hover {
+		background: var(--color-bg-hover);
 	}
 
 	.pr-title {
-		color: #0366d6;
+		color: var(--color-accent-primary);
 		text-decoration: none;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		line-height: 1.4;
 		display: block;
 	}
@@ -51,15 +56,15 @@
 	.pr-meta {
 		display: flex;
 		gap: 0.5rem;
-		font-size: 0.75rem;
-		color: #586069;
-		margin-top: 0.25rem;
+		font-size: 0.6875rem;
+		color: var(--color-text-secondary);
+		margin-top: 0.125rem;
 	}
 
 	.pr-badges {
 		display: flex;
 		gap: 0.25rem;
-		margin-top: 0.25rem;
+		margin-top: 0.125rem;
 		flex-wrap: wrap;
 	}
 </style>

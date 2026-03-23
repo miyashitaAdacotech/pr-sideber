@@ -123,6 +123,18 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		padding: 0.5rem 0;
+		border-bottom: 1px solid var(--color-border-primary);
+		position: sticky;
+		top: 0;
+		background: var(--color-bg-primary);
+		z-index: 10;
+	}
+
+	h1 {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text-primary);
 	}
 
 	.header-left {
@@ -138,7 +150,9 @@
 	}
 
 	main {
-		padding: 1rem;
+		padding: 0.75rem;
+		min-height: 100vh;
+		background: var(--color-bg-primary);
 	}
 
 	.reload-button {
@@ -204,21 +218,26 @@
 	}
 
 	.error {
-		color: #d73a49;
+		color: var(--color-badge-red);
 	}
 
 	.retry-button {
 		margin-top: 0.5rem;
 		padding: 0.375rem 0.75rem;
-		background: #0366d6;
-		color: white;
+		background: var(--color-accent-primary);
+		color: var(--color-bg-primary);
 		border: none;
 		border-radius: 4px;
 		cursor: pointer;
 		font-size: 0.875rem;
+		transition: opacity 0.15s;
 	}
 
 	.retry-button:hover {
-		background: #0256b9;
+		opacity: 0.85;
+	}
+
+	.retry-button:active {
+		opacity: 0.7;
 	}
 </style>

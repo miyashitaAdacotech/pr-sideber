@@ -93,22 +93,45 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		padding: 2rem;
+		padding: 2rem 1rem;
 		gap: 1rem;
+		min-height: 100vh;
+		background: var(--color-bg-primary);
+	}
+
+	h2 {
+		color: var(--color-text-primary);
+		font-size: 1rem;
+	}
+
+	p {
+		color: var(--color-text-secondary);
+		font-size: 0.875rem;
+		text-align: center;
 	}
 
 	.login-btn {
-		padding: 0.75rem 1.5rem;
-		font-size: 1rem;
+		padding: 0.625rem 1.25rem;
+		font-size: 0.875rem;
 		cursor: pointer;
-		border: 1px solid #ccc;
+		border: 1px solid var(--color-border-primary);
 		border-radius: 6px;
-		background: #24292e;
-		color: #fff;
+		background: var(--color-accent-primary);
+		color: var(--color-bg-primary);
+		font-weight: 600;
+		transition: opacity 0.15s;
+	}
+
+	.login-btn:hover {
+		opacity: 0.85;
+	}
+
+	.login-btn:active {
+		opacity: 0.7;
 	}
 
 	.login-btn:disabled {
-		opacity: 0.6;
+		opacity: 0.4;
 		cursor: not-allowed;
 	}
 
@@ -118,13 +141,16 @@
 		align-items: center;
 		gap: 0.75rem;
 		padding: 1rem;
-		border: 1px solid #e1e4e8;
+		border: 1px solid var(--color-border-primary);
 		border-radius: 8px;
-		background: #f6f8fa;
+		background: var(--color-bg-secondary);
+		width: 100%;
+		max-width: 320px;
 	}
 
 	.instruction {
 		font-weight: 600;
+		color: var(--color-text-primary);
 	}
 
 	.user-code-container {
@@ -134,41 +160,56 @@
 	}
 
 	.user-code {
-		font-size: 1.5rem;
+		font-size: 1.25rem;
 		font-weight: bold;
 		letter-spacing: 0.15em;
-		padding: 0.5rem 1rem;
-		background: #fff;
-		border: 2px solid #0366d6;
+		padding: 0.375rem 0.75rem;
+		background: var(--color-bg-primary);
+		border: 2px solid var(--color-accent-primary);
 		border-radius: 6px;
+		color: var(--color-accent-primary);
 	}
 
 	.copy-btn {
-		padding: 0.4rem 0.8rem;
+		padding: 0.375rem 0.625rem;
 		cursor: pointer;
-		border: 1px solid #ccc;
+		border: 1px solid var(--color-border-primary);
 		border-radius: 4px;
-		background: #fff;
-		font-size: 0.85rem;
+		background: var(--color-bg-hover);
+		color: var(--color-text-primary);
+		font-size: 0.8125rem;
+		transition: background 0.15s;
+	}
+
+	.copy-btn:hover {
+		background: var(--color-bg-secondary);
+	}
+
+	.copy-btn:active {
+		background: var(--color-border-primary);
 	}
 
 	.verification-link {
-		color: #0366d6;
+		color: var(--color-accent-primary);
 		text-decoration: underline;
 		cursor: pointer;
+		font-size: 0.8125rem;
 	}
 
 	.polling-status {
-		color: #586069;
+		color: var(--color-text-secondary);
 		font-style: italic;
+		font-size: 0.8125rem;
 	}
 
 	.error {
-		color: #d73a49;
+		color: var(--color-badge-red);
+		font-size: 0.8125rem;
 	}
 
 	.success {
-		color: #28a745;
+		color: var(--color-badge-green);
 		font-weight: 600;
+		font-size: 0.875rem;
 	}
 </style>

@@ -39,4 +39,10 @@
 			opacity: 0.5;
 		}
 	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.badge-animate {
+			animation: none;
+		}
+	}
 </style>

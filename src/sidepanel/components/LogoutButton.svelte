@@ -25,21 +25,23 @@
 
 <style>
 	button {
-		padding: 0.5rem 1rem;
-		font-size: 0.875rem;
+		padding: 0.25rem 0.625rem;
+		font-size: 0.75rem;
 		cursor: pointer;
-		border: 1px solid #ccc;
+		border: 1px solid var(--color-border-primary);
 		border-radius: 4px;
 		background: transparent;
-		color: #586069;
+		color: var(--color-text-secondary);
+		transition: background 0.15s, color 0.15s;
 	}
 
 	button:hover {
-		background: #f6f8fa;
+		background: var(--color-bg-hover);
+		color: var(--color-text-primary);
 	}
 
 	.error {
-		color: #d73a49;
-		font-size: 0.875rem;
+		color: var(--color-badge-red);
+		font-size: 0.75rem;
 	}
 </style>
