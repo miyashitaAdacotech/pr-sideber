@@ -105,3 +105,9 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Verify no DEV logs in production build
+        run: bash scripts/verify-no-dev-logs.sh
