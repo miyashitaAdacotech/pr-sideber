@@ -18,6 +18,7 @@
 		#{pr.number} {pr.title}
 	</a>
 	<div class="pr-meta">
+		<span class="pr-author">{pr.author}</span>
 		<span class="pr-repo">{pr.repository}</span>
 		<span class="pr-updated">{formatRelativeTime(pr.updatedAt)}</span>
 	</div>
@@ -59,6 +60,14 @@
 		font-size: 0.6875rem;
 		color: var(--color-text-secondary);
 		margin-top: 0.125rem;
+	}
+
+	.pr-author {
+		max-width: 7rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
 
 	.pr-badges {
