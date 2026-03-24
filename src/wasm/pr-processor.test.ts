@@ -14,6 +14,7 @@ describe("PrProcessorPort", () => {
 				return {
 					myPrs: { items: [], totalCount: 0 },
 					reviewRequests: { items: [], totalCount: 0 },
+					reviewRequestBadgeCount: 0,
 				};
 			},
 		};
@@ -29,6 +30,7 @@ describe("PrProcessorPort", () => {
 		const result: ProcessedPrsResult = {
 			myPrs: { items: [], totalCount: 0 },
 			reviewRequests: { items: [], totalCount: 0 },
+			reviewRequestBadgeCount: 0,
 		};
 
 		expect(result).toHaveProperty("myPrs");

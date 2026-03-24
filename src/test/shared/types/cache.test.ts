@@ -5,6 +5,7 @@ const validCachedPrData = {
 	data: {
 		myPrs: { items: [], totalCount: 0 },
 		reviewRequests: { items: [], totalCount: 0 },
+		reviewRequestBadgeCount: 0,
 		hasMore: false,
 	},
 	lastUpdatedAt: "2026-03-22T00:00:00Z",
@@ -101,6 +102,31 @@ describe("isCachedPrData", () => {
 			data: {
 				myPrs: { items: [], totalCount: 0 },
 				reviewRequests: { items: "not-array", totalCount: 0 },
+				hasMore: false,
+			},
+			lastUpdatedAt: "2026-03-22T00:00:00Z",
+		};
+		expect(isCachedPrData(invalid)).toBe(false);
+	});
+
+	it("should reject when data.reviewRequestBadgeCount is missing", () => {
+		const invalid = {
+			data: {
+				myPrs: { items: [], totalCount: 0 },
+				reviewRequests: { items: [], totalCount: 0 },
+				hasMore: false,
+			},
+			lastUpdatedAt: "2026-03-22T00:00:00Z",
+		};
+		expect(isCachedPrData(invalid)).toBe(false);
+	});
+
+	it("should reject when data.reviewRequestBadgeCount is not a number", () => {
+		const invalid = {
+			data: {
+				myPrs: { items: [], totalCount: 0 },
+				reviewRequests: { items: [], totalCount: 0 },
+				reviewRequestBadgeCount: "zero",
 				hasMore: false,
 			},
 			lastUpdatedAt: "2026-03-22T00:00:00Z",

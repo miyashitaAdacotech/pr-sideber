@@ -31,6 +31,7 @@ export interface PrListDto {
 export type ProcessedPrsResult = {
 	readonly myPrs: PrListDto;
 	readonly reviewRequests: PrListDto;
+	readonly reviewRequestBadgeCount: number;
 };
 
 export interface PrProcessorPort {

@@ -40,5 +40,8 @@ export function isCachedPrData(value: unknown): value is CachedPrData {
 	if (!Array.isArray(reviewRequests.items)) {
 		return false;
 	}
+	if (typeof data.reviewRequestBadgeCount !== "number") {
+		return false;
+	}
 	return true;
 }
