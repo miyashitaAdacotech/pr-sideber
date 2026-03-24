@@ -44,14 +44,39 @@ describe("PrItem", () => {
 		expect(authorEl?.textContent?.trim()).toBe("testuser");
 	});
 
-	it("should display the PR number and title", () => {
+	it("should display the PR title followed by the PR number", () => {
 		component = mount(PrItem, {
 			target: document.body,
 			props: { pr: createPrItemDto({ number: 99, title: "Fix bug Y" }) },
 		});
 		const titleEl = document.querySelector(".pr-title");
 		expect(titleEl).not.toBeNull();
-		expect(titleEl?.textContent?.trim()).toBe("#99 Fix bug Y");
+		// タイトルテキストが先に表示され、番号が後に続く (完全一致で検証)
+		const textContent = titleEl?.textContent?.trim() ?? "";
+		expect(textContent).toMatch(/^Fix bug Y\s*#99$/);
+	});
+
+	it("should render the PR number in a dedicated .pr-number element", () => {
+		// NOTE: 薄い色の表示は .pr-number クラスの CSS (color: var(--color-text-secondary)) で実現。DOM 構造テストで担保。
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto({ number: 99, title: "Fix bug Y" }) },
+		});
+		const numberEl = document.querySelector(".pr-number");
+		expect(numberEl).not.toBeNull();
+		expect(numberEl?.textContent?.trim()).toBe("#99");
+	});
+
+	it("should place .pr-number element after the title text within .pr-title", () => {
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto({ number: 99, title: "Fix bug Y" }) },
+		});
+		const titleEl = document.querySelector(".pr-title");
+		const numberEl = titleEl?.querySelector(".pr-number");
+		expect(numberEl).not.toBeNull();
+		// .pr-number は .pr-title の子要素として末尾に存在する
+		expect(titleEl?.lastElementChild).toBe(numberEl);
 	});
 
 	it("should display the repository name", () => {
