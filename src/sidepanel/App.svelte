@@ -12,8 +12,9 @@
 		deviceFlowController: DeviceFlowController;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
 		onNavigate?: (url: string) => void;
+		getCurrentTabUrl?: () => Promise<string | null>;
 	};
-	const { authUseCase, prUseCase, deviceFlowController, subscribeToMessages, onNavigate }: Props = $props();
+	const { authUseCase, prUseCase, deviceFlowController, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -53,7 +54,7 @@
 		<p>Loading...</p>
 	</div>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {onNavigate} />
+	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {onNavigate} {getCurrentTabUrl} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}

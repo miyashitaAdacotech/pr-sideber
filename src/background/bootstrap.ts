@@ -42,6 +42,35 @@ export function initializeApp(): AppServices {
 	const handler = createMessageHandler({ auth, githubApi, prProcessor, badge, tabNavigation });
 	chrome.runtime.onMessage.addListener(handler);
 
+	// タブ変更リスナー: アクティブタブの URL 変更を Side Panel に通知
+	async function onTabActivated(_activeInfo: { tabId: number; windowId: number }): Promise<void> {
+		try {
+			const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+			const url = tabs[0]?.url;
+			if (url) {
+				await chrome.runtime.sendMessage({ type: "TAB_URL_CHANGED", url });
+			}
+		} catch {
+			// Side Panel が閉じている場合の "Receiving end does not exist" は正常系
+		}
+	}
+
+	async function onTabUpdated(
+		_tabId: number,
+		changeInfo: { url?: string; status?: string },
+		tab: chrome.tabs.Tab,
+	): Promise<void> {
+		if (!changeInfo.url || !tab.active) return;
+		try {
+			await chrome.runtime.sendMessage({ type: "TAB_URL_CHANGED", url: changeInfo.url });
+		} catch {
+			// Side Panel が閉じている場合の "Receiving end does not exist" は正常系
+		}
+	}
+
+	chrome.tabs.onActivated.addListener(onTabActivated);
+	chrome.tabs.onUpdated.addListener(onTabUpdated);
+
 	const alarm = new ChromeAlarmAdapter();
 	const autoRefresh = createAutoRefreshUseCase({
 		alarm,
@@ -88,6 +117,8 @@ export function initializeApp(): AppServices {
 			auth.dispose();
 		} finally {
 			chrome.runtime.onMessage.removeListener(handler);
+			chrome.tabs.onActivated.removeListener(onTabActivated);
+			chrome.tabs.onUpdated.removeListener(onTabUpdated);
 			services = null; // dispose 後は再初期化を許可する
 		}
 	};

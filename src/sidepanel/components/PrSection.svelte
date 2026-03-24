@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PrItemDto } from "../../domain/ports/pr-processor.port";
+	import { extractPrBaseUrl } from "../../shared/utils/github-url";
 	import PrItem from "./PrItem.svelte";
 
 	type Props = {
@@ -32,7 +33,7 @@
 				<p class="empty-message">PR がありません</p>
 			{:else}
 				{#each items as pr (pr.url)}
-					<PrItem {pr} {onNavigate} />
+					<PrItem {pr} {onNavigate} isActive={activeTabUrl != null && extractPrBaseUrl(activeTabUrl) === extractPrBaseUrl(pr.url)} />
 				{/each}
 			{/if}
 		</div>

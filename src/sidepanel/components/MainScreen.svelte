@@ -2,7 +2,7 @@
 	import { untrack } from "svelte";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
-	import { isCacheUpdatedEvent } from "../../shared/types/events";
+	import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../shared/types/events";
 	import LogoutButton from "./LogoutButton.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
 	import PrSection from "./PrSection.svelte";
@@ -17,12 +17,13 @@
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
 
-	const { onLogout, fetchPrs, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate }: Props = $props();
+	const { onLogout, fetchPrs, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let data = $state<(ProcessedPrsResult & { hasMore: boolean }) | null>(null);
 	let lastUpdatedAt = $state<string | undefined>(undefined);
+	let activeTabUrl = $state<string | null>(null);
 
 	async function loadPrs(): Promise<void> {
 		loading = true;
@@ -76,6 +77,18 @@
 					loading = false;
 				}
 			}
+
+			// 現在のタブ URL を取得してハイライトに使う
+			try {
+				const url = await getCurrentTabUrl?.();
+				if (!cancelled && url) {
+					activeTabUrl = url;
+				}
+			} catch (err: unknown) {
+				if (import.meta.env.DEV) {
+					console.warn("[MainScreen] getCurrentTabUrl failed:", err);
+				}
+			}
 		});
 
 		return () => {
@@ -99,6 +112,9 @@
 							console.warn("[MainScreen] cache reload failed:", err);
 						}
 					});
+			}
+			if (isTabUrlChangedEvent(message)) {
+				activeTabUrl = message.url;
 			}
 		}
 
@@ -149,8 +165,8 @@
 				<p class="error-text">{error}</p>
 			</div>
 		{/if}
-		<PrSection title="My PRs" items={data.myPrs.items} {onNavigate} />
-		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} />
+		<PrSection title="My PRs" items={data.myPrs.items} {onNavigate} {activeTabUrl} />
+		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} {activeTabUrl} />
 	{/if}
 </main>
 

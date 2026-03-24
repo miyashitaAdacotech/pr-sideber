@@ -2,6 +2,7 @@ import "./styles/global.css";
 import { mount } from "svelte";
 import { chromeSendMessage, subscribeToMessages } from "../adapter/chrome/message.adapter";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
+import { TabNavigationAdapter } from "../adapter/chrome/tab-navigation.adapter";
 import { createAuthUseCase } from "../shared/usecase/auth.usecase";
 import { createDeviceFlowController } from "../shared/usecase/device-flow.controller";
 import { createPrUseCase } from "../shared/usecase/pr.usecase";
@@ -18,6 +19,7 @@ const deviceFlowController = createDeviceFlowController(authUseCase);
 const storage = new ChromeStorageAdapter();
 const prUseCase = createPrUseCase(chromeSendMessage, storage);
 const tabNavigationUseCase = createTabNavigationUseCase(chromeSendMessage);
+const tabNavigationAdapter = new TabNavigationAdapter();
 
 const app = mount(App, {
 	target,
@@ -27,6 +29,7 @@ const app = mount(App, {
 		deviceFlowController,
 		subscribeToMessages,
 		onNavigate: (url: string) => tabNavigationUseCase.navigateToPr(url),
+		getCurrentTabUrl: () => tabNavigationAdapter.getCurrentTabUrl(),
 	},
 });
 
