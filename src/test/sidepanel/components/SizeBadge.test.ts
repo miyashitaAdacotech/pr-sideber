@@ -2,11 +2,6 @@ import { mount, unmount } from "svelte";
 import { afterEach, describe, expect, it } from "vitest";
 import SizeBadge from "../../../sidepanel/components/SizeBadge.svelte";
 
-/** テスト専用: 型チェックを迂回して不正値を注入する */
-function unsafeCast<T>(value: unknown): T {
-	return value as T;
-}
-
 describe("SizeBadge", () => {
 	let component: ReturnType<typeof mount>;
 
@@ -17,103 +12,72 @@ describe("SizeBadge", () => {
 		document.body.innerHTML = "";
 	});
 
-	it("should render additions and deletions with size-xs class for XS", () => {
+	it("should render additions in .badge-green and deletions in .badge-red", () => {
 		component = mount(SizeBadge, {
 			target: document.body,
-			props: { sizeLabel: "XS", additions: 3, deletions: 2 },
+			props: { additions: 3, deletions: 2 },
 		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).not.toBeNull();
-		expect(badge?.textContent?.trim()).toBe("+3 -2");
-		expect(badge?.classList.contains("size-xs")).toBe(true);
+		const green = document.querySelector(".badge-green");
+		const red = document.querySelector(".badge-red");
+		expect(green).not.toBeNull();
+		expect(green?.textContent?.trim()).toBe("+3");
+		expect(red).not.toBeNull();
+		expect(red?.textContent?.trim()).toBe("-2");
 	});
 
-	it("should render additions and deletions with size-s class for S", () => {
+	it("should render +0 in .badge-green when additions is 0", () => {
 		component = mount(SizeBadge, {
 			target: document.body,
-			props: { sizeLabel: "S", additions: 20, deletions: 5 },
+			props: { additions: 0, deletions: 5 },
 		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).not.toBeNull();
-		expect(badge?.textContent?.trim()).toBe("+20 -5");
-		expect(badge?.classList.contains("size-s")).toBe(true);
+		const green = document.querySelector(".badge-green");
+		expect(green).not.toBeNull();
+		expect(green?.textContent?.trim()).toBe("+0");
 	});
 
-	it("should render additions and deletions with size-m class for M", () => {
+	it("should render -0 in .badge-red when deletions is 0", () => {
 		component = mount(SizeBadge, {
 			target: document.body,
-			props: { sizeLabel: "M", additions: 100, deletions: 50 },
+			props: { additions: 8, deletions: 0 },
 		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).not.toBeNull();
-		expect(badge?.textContent?.trim()).toBe("+100 -50");
-		expect(badge?.classList.contains("size-m")).toBe(true);
+		const red = document.querySelector(".badge-red");
+		expect(red).not.toBeNull();
+		expect(red?.textContent?.trim()).toBe("-0");
 	});
 
-	it("should render additions and deletions with size-l class for L", () => {
+	it("should render large values correctly", () => {
 		component = mount(SizeBadge, {
 			target: document.body,
-			props: { sizeLabel: "L", additions: 300, deletions: 100 },
+			props: { additions: 800, deletions: 200 },
 		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).not.toBeNull();
-		expect(badge?.textContent?.trim()).toBe("+300 -100");
-		expect(badge?.classList.contains("size-l")).toBe(true);
+		const green = document.querySelector(".badge-green");
+		const red = document.querySelector(".badge-red");
+		expect(green).not.toBeNull();
+		expect(green?.textContent?.trim()).toBe("+800");
+		expect(red).not.toBeNull();
+		expect(red?.textContent?.trim()).toBe("-200");
 	});
 
-	it("should render additions and deletions with size-xl class for XL", () => {
+	it("should render .badge-green and .badge-red with zero values", () => {
 		component = mount(SizeBadge, {
 			target: document.body,
-			props: { sizeLabel: "XL", additions: 800, deletions: 200 },
+			props: { additions: 0, deletions: 0 },
 		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).not.toBeNull();
-		expect(badge?.textContent?.trim()).toBe("+800 -200");
-		expect(badge?.classList.contains("size-xl")).toBe(true);
+		const green = document.querySelector(".badge-green");
+		const red = document.querySelector(".badge-red");
+		expect(green).not.toBeNull();
+		expect(red).not.toBeNull();
 	});
 
-	it("should render nothing when sizeLabel is an empty string", () => {
+	it("should not have any size-xs through size-xl classes in the DOM", () => {
 		component = mount(SizeBadge, {
 			target: document.body,
-			props: { sizeLabel: "", additions: 0, deletions: 0 },
+			props: { additions: 10, deletions: 5 },
 		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).toBeNull();
-	});
-
-	it("should render nothing when sizeLabel is an unknown value", () => {
-		component = mount(SizeBadge, {
-			target: document.body,
-			props: { sizeLabel: unsafeCast<string>("INVALID"), additions: 10, deletions: 5 },
-		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).toBeNull();
-	});
-
-	it("should render nothing when sizeLabel is undefined", () => {
-		component = mount(SizeBadge, {
-			target: document.body,
-			props: { sizeLabel: unsafeCast<string>(undefined), additions: 0, deletions: 0 },
-		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge).toBeNull();
-	});
-
-	it("should handle zero additions", () => {
-		component = mount(SizeBadge, {
-			target: document.body,
-			props: { sizeLabel: "XS", additions: 0, deletions: 5 },
-		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge?.textContent?.trim()).toBe("+0 -5");
-	});
-
-	it("should handle zero deletions", () => {
-		component = mount(SizeBadge, {
-			target: document.body,
-			props: { sizeLabel: "XS", additions: 8, deletions: 0 },
-		});
-		const badge = document.querySelector(".size-badge");
-		expect(badge?.textContent?.trim()).toBe("+8 -0");
+		expect(document.querySelector(".size-xs")).toBeNull();
+		expect(document.querySelector(".size-s")).toBeNull();
+		expect(document.querySelector(".size-m")).toBeNull();
+		expect(document.querySelector(".size-l")).toBeNull();
+		expect(document.querySelector(".size-xl")).toBeNull();
 	});
 });

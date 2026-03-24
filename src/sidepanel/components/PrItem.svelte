@@ -39,7 +39,7 @@
 		<span class="pr-updated"><RelativeTime dateStr={pr.updatedAt} /></span>
 	</div>
 	<div class="pr-badges">
-		<SizeBadge sizeLabel={pr.sizeLabel} additions={pr.additions} deletions={pr.deletions} />
+		<SizeBadge additions={pr.additions} deletions={pr.deletions} />
 		<DraftBadge isDraft={pr.isDraft} />
 		{#if !pr.isDraft}
 			<ApprovalBadge approvalStatus={pr.approvalStatus} />
