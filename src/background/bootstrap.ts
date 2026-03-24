@@ -3,6 +3,7 @@ import { createChromeBadgeAdapter } from "../adapter/chrome/badge.adapter";
 import { ChromeIdentityAdapter } from "../adapter/chrome/identity.adapter";
 import { createOAuthConfig } from "../adapter/chrome/oauth.config";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
+import { TabNavigationAdapter } from "../adapter/chrome/tab-navigation.adapter";
 import { GitHubGraphQLClient } from "../adapter/github/graphql-client";
 import { GitHubApiError } from "../shared/types/errors";
 import { createAutoRefreshUseCase } from "../shared/usecase/auto-refresh.usecase";
@@ -36,8 +37,9 @@ export function initializeApp(): AppServices {
 
 	const badgeAdapter = createChromeBadgeAdapter();
 	const badge = createBadgeUseCase(badgeAdapter);
+	const tabNavigation = new TabNavigationAdapter();
 
-	const handler = createMessageHandler({ auth, githubApi, prProcessor, badge });
+	const handler = createMessageHandler({ auth, githubApi, prProcessor, badge, tabNavigation });
 	chrome.runtime.onMessage.addListener(handler);
 
 	const alarm = new ChromeAlarmAdapter();
@@ -90,6 +92,6 @@ export function initializeApp(): AppServices {
 		}
 	};
 
-	services = { auth, githubApi, prProcessor, badge, dispose };
+	services = { auth, githubApi, prProcessor, badge, tabNavigation, dispose };
 	return services;
 }

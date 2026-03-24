@@ -1,6 +1,7 @@
 import type { AuthPort } from "../domain/ports/auth.port";
 import type { GitHubApiPort } from "../domain/ports/github-api.port";
 import type { PrProcessorPort } from "../domain/ports/pr-processor.port";
+import type { TabNavigationPort } from "../domain/ports/tab-navigation.port";
 
 export type BadgeService = {
 	readonly updateBadge: (reviewRequestCount: number) => Promise<void>;
@@ -11,5 +12,6 @@ export type AppServices = {
 	readonly githubApi: GitHubApiPort;
 	readonly prProcessor: PrProcessorPort;
 	readonly badge: BadgeService;
+	readonly tabNavigation: TabNavigationPort;
 	readonly dispose: () => void;
 };

@@ -8,6 +8,7 @@ export const MESSAGE_TYPES = [
 	"AUTH_DEVICE_POLL",
 	"FETCH_PRS",
 	"UPDATE_BADGE",
+	"NAVIGATE_TO_PR",
 ] as const;
 
 export type MessageType = (typeof MESSAGE_TYPES)[number];
@@ -20,6 +21,7 @@ export type RequestMap = {
 	AUTH_DEVICE_POLL: { deviceCode: string };
 	FETCH_PRS: undefined;
 	UPDATE_BADGE: { reviewRequestCount: number };
+	NAVIGATE_TO_PR: { url: string };
 };
 
 /** メッセージタイプ → レスポンスデータのマッピング */
@@ -30,6 +32,7 @@ export type ResponseDataMap = {
 	AUTH_DEVICE_POLL: PollResult;
 	FETCH_PRS: ProcessedPrsResult & { hasMore: boolean };
 	UPDATE_BADGE: undefined;
+	NAVIGATE_TO_PR: undefined;
 };
 
 export type MessageError = {

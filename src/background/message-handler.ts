@@ -1,5 +1,6 @@
 import type { MessageType, RequestMessage, ResponseMessage } from "../shared/types/messages";
 import { isRequestMessage } from "../shared/types/messages";
+import { extractPrBaseUrl } from "../shared/utils/github-url";
 import type { AppServices } from "./types";
 
 /** メッセージタイプごとの汎用エラーメッセージ */
@@ -10,6 +11,7 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 	AUTH_DEVICE_POLL: "Device polling failed",
 	FETCH_PRS: "Failed to fetch pull requests",
 	UPDATE_BADGE: "Failed to update badge",
+	NAVIGATE_TO_PR: "Navigation failed",
 };
 
 /** deviceCode の長さ制限 */
@@ -17,7 +19,7 @@ const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
 
 export function createMessageHandler(
-	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge">,
+	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge" | "tabNavigation">,
 ) {
 	return (
 		message: unknown,
@@ -39,7 +41,7 @@ export function createMessageHandler(
 }
 
 async function handleMessage(
-	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge">,
+	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge" | "tabNavigation">,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
 ): Promise<void> {
@@ -99,6 +101,12 @@ async function handleMessage(
 				}
 
 				await services.badge.updateBadge(reviewRequestCount);
+				sendResponse({ ok: true, data: undefined });
+				break;
+			}
+			case "NAVIGATE_TO_PR": {
+				const msg = message as RequestMessage<"NAVIGATE_TO_PR">;
+				await services.tabNavigation.navigateCurrentTab(msg.payload.url);
 				sendResponse({ ok: true, data: undefined });
 				break;
 			}

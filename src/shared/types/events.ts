@@ -17,3 +17,19 @@ export function isCacheUpdatedEvent(value: unknown): value is CacheUpdatedEvent 
 	}
 	return Number.isFinite(new Date(obj.lastUpdatedAt as string).getTime());
 }
+
+export type TabUrlChangedEvent = {
+	readonly type: "TAB_URL_CHANGED";
+	readonly url: string;
+};
+
+export function isTabUrlChangedEvent(value: unknown): value is TabUrlChangedEvent {
+	if (value === null || value === undefined || typeof value !== "object") {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	if (obj.type !== "TAB_URL_CHANGED" || typeof obj.url !== "string") {
+		return false;
+	}
+	return obj.url.length > 0;
+}

@@ -8,12 +8,26 @@
 
 	type Props = {
 		pr: PrItemDto;
+		isActive?: boolean;
+		onNavigate?: (url: string) => void;
 	};
 
-	const { pr }: Props = $props();
+	const { pr, isActive = false, onNavigate }: Props = $props();
+
+	function handleClick(e: MouseEvent): void {
+		if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) {
+			return;
+		}
+		if (onNavigate) {
+			e.preventDefault();
+			onNavigate(pr.url);
+		}
+	}
 </script>
 
-<div class="pr-item">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="pr-item" class:active={isActive} onclick={handleClick}>
 	<a class="pr-title" href={safeUrl(pr.url)} target="_blank" rel="noopener noreferrer">
 		#{pr.number} {pr.title}
 	</a>
@@ -40,6 +54,11 @@
 
 	.pr-item:hover {
 		background: var(--color-bg-hover);
+	}
+
+	.pr-item.active {
+		background: var(--color-bg-secondary);
+		border-left: 2px solid var(--color-accent-primary);
 	}
 
 	.pr-title {
