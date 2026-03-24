@@ -75,6 +75,8 @@ describe("message-handler FETCH_PRS", () => {
 				findExistingPrTab: vi.fn().mockResolvedValue(null),
 				activateTab: vi.fn().mockResolvedValue(undefined),
 				openNewTab: vi.fn().mockResolvedValue(undefined),
+				getTabUrl: vi.fn().mockResolvedValue(null),
+				navigateTabToUrl: vi.fn().mockResolvedValue(undefined),
 			},
 		});
 	});

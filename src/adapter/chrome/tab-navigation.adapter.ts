@@ -39,4 +39,17 @@ export class TabNavigationAdapter implements TabNavigationPort {
 	async openNewTab(url: string): Promise<void> {
 		await chrome.tabs.create({ url });
 	}
+
+	async getTabUrl(tabId: number): Promise<string | null> {
+		try {
+			const tab = await chrome.tabs.get(tabId);
+			return tab?.url ?? null;
+		} catch {
+			return null;
+		}
+	}
+
+	async navigateTabToUrl(tabId: number, url: string): Promise<void> {
+		await chrome.tabs.update(tabId, { url });
+	}
 }

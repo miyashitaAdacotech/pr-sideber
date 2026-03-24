@@ -30,7 +30,23 @@ export function extractPrBaseUrl(url: string): string | null {
 
 /**
  * URL が PR のサブページ (/files, /commits, /checks など) かどうかを判定する。
+ * PR トップページ自体は false を返す。
  */
-export function isPrSubPage(_url: string): boolean {
-	throw new Error("Not implemented");
+export function isPrSubPage(url: string): boolean {
+	if (url.length > MAX_URL_LENGTH) return false;
+
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return false;
+	}
+
+	if (parsed.hostname !== "github.com") {
+		return false;
+	}
+
+	// /owner/repo/pull/123/files のように、pull/数字 の後にさらにパスセグメントがあるか
+	const match = parsed.pathname.match(/^\/[^/]+\/[^/]+\/pull\/\d+\/(.+)/);
+	return match !== null;
 }

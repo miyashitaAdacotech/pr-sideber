@@ -1,6 +1,6 @@
 import type { MessageType, RequestMessage, ResponseMessage } from "../shared/types/messages";
 import { isRequestMessage } from "../shared/types/messages";
-import { extractPrBaseUrl } from "../shared/utils/github-url";
+import { extractPrBaseUrl, isPrSubPage } from "../shared/utils/github-url";
 import type { AppServices } from "./types";
 
 /** メッセージタイプごとの汎用エラーメッセージ */
@@ -121,6 +121,16 @@ async function handleMessage(
 					if (existingTabId !== null) {
 						try {
 							await services.tabNavigation.activateTab(existingTabId);
+							// サブページにいる場合は PR トップに遷移する
+							let currentTabUrl: string | null = null;
+							try {
+								currentTabUrl = await services.tabNavigation.getTabUrl(existingTabId);
+							} catch {
+								// getTabUrl 失敗時は activateTab のみで完了
+							}
+							if (currentTabUrl && isPrSubPage(currentTabUrl)) {
+								await services.tabNavigation.navigateTabToUrl(existingTabId, prBaseUrl);
+							}
 						} catch {
 							await services.tabNavigation.openNewTab(url);
 						}

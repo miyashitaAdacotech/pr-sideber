@@ -8,4 +8,6 @@ export interface TabNavigationPort {
 	findExistingPrTab(prBaseUrl: string): Promise<number | null>;
 	activateTab(tabId: number): Promise<void>;
 	openNewTab(url: string): Promise<void>;
+	getTabUrl(tabId: number): Promise<string | null>;
+	navigateTabToUrl(tabId: number, url: string): Promise<void>;
 }

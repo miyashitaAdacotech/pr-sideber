@@ -1,6 +1,8 @@
 import init, {
 	initWasm,
 	greet as wasmGreet,
+	extractPrBaseUrl as wasmExtractPrBaseUrl,
+	isPrSubPage as wasmIsPrSubPage,
 } from "../../rust-core/crates/adapter-wasm/pkg/adapter_wasm.js";
 import { isGreeting } from "./greeting.js";
 
