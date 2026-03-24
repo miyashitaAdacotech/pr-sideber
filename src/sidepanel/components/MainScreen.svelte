@@ -13,9 +13,10 @@
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
+		onNavigate?: (url: string) => void;
 	};
 
-	const { onLogout, fetchPrs, getCachedPrs, loadPrsWithCache, subscribeToMessages }: Props = $props();
+	const { onLogout, fetchPrs, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -147,8 +148,8 @@
 				<p class="error-text">{error}</p>
 			</div>
 		{/if}
-		<PrSection title="My PRs" items={data.myPrs.items} />
-		<PrSection title="Review Requests" items={data.reviewRequests.items} />
+		<PrSection title="My PRs" items={data.myPrs.items} {onNavigate} />
+		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} />
 	{/if}
 </main>
 

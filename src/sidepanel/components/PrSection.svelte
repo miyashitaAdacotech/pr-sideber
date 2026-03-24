@@ -6,9 +6,10 @@
 		title: string;
 		items: readonly PrItemDto[];
 		isOpen?: boolean;
+		onNavigate?: (url: string) => void;
 	};
 
-	const { title, items, isOpen: initialOpen = true }: Props = $props();
+	const { title, items, isOpen: initialOpen = true, onNavigate }: Props = $props();
 
 	let open = $state(initialOpen);
 
@@ -30,7 +31,7 @@
 				<p class="empty-message">PR がありません</p>
 			{:else}
 				{#each items as pr (pr.url)}
-					<PrItem {pr} />
+					<PrItem {pr} {onNavigate} />
 				{/each}
 			{/if}
 		</div>

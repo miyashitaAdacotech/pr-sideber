@@ -32,6 +32,7 @@ function createDefaultProps() {
 		getCachedPrs: createMockGetCachedPrs(),
 		loadPrsWithCache: createMockLoadPrsWithCache(),
 		subscribeToMessages: createMockSubscribeToMessages(),
+		onNavigate: vi.fn(),
 	};
 }
 
@@ -156,6 +157,59 @@ describe("MainScreen", () => {
 		});
 
 		vi.useRealTimers();
+	});
+
+	it("should call onNavigate when a PR item is clicked in the loaded state", async () => {
+		const onNavigate = vi.fn();
+		const mockGetCachedPrs = vi.fn(async () => ({
+			data: {
+				myPrs: {
+					items: [
+						{
+							id: "PR_100",
+							number: 100,
+							title: "Test PR for navigation",
+							author: "testuser",
+							url: "https://github.com/owner/repo/pull/100",
+							repository: "owner/repo",
+							isDraft: false,
+							approvalStatus: "ReviewRequired" as const,
+							ciStatus: "Passed" as const,
+							mergeableStatus: "Unknown" as const,
+							additions: 5,
+							deletions: 2,
+							createdAt: "2026-03-20T10:00:00Z",
+							updatedAt: "2026-03-23T10:00:00Z",
+							sizeLabel: "S",
+							unresolvedCommentCount: 0,
+						},
+					],
+					totalCount: 1,
+				},
+				reviewRequests: { items: [], totalCount: 0 },
+				hasMore: false,
+			},
+			lastUpdatedAt: "2026-03-23T10:00:00.000Z",
+		}));
+
+		component = mount(MainScreen, {
+			target: document.body,
+			props: {
+				...createDefaultProps(),
+				getCachedPrs: mockGetCachedPrs,
+				onNavigate,
+			},
+		});
+
+		// キャッシュからデータが読み込まれるのを待つ
+		await vi.waitFor(() => {
+			expect(document.querySelector(".pr-item")).not.toBeNull();
+		});
+
+		const prItem = document.querySelector(".pr-item") as HTMLElement;
+		prItem.click();
+
+		expect(onNavigate).toHaveBeenCalledWith("https://github.com/owner/repo/pull/100");
 	});
 
 	it("should call unsubscribe when unmounted", async () => {
