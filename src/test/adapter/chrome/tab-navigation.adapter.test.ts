@@ -58,6 +58,110 @@ describe("TabNavigationAdapter", () => {
 		});
 	});
 
+	describe("findExistingPrTab", () => {
+		it("should return tab id when a tab with the same PR base URL exists", async () => {
+			const mock = getChromeMock();
+			mock.tabs.query.mockResolvedValue([
+				{ id: 10, url: "https://github.com/owner/repo/pull/42" },
+				{ id: 20, url: "https://github.com/other/repo/pull/1" },
+			]);
+
+			const tabId = await adapter.findExistingPrTab("https://github.com/owner/repo/pull/42");
+
+			expect(tabId).toBe(10);
+			expect(mock.tabs.query).toHaveBeenCalledWith({ url: "https://github.com/*/*/pull/*" });
+		});
+
+		it("should match a tab with a sub-path like /files", async () => {
+			const mock = getChromeMock();
+			mock.tabs.query.mockResolvedValue([
+				{ id: 15, url: "https://github.com/owner/repo/pull/42/files#diff-abc" },
+			]);
+
+			const tabId = await adapter.findExistingPrTab("https://github.com/owner/repo/pull/42");
+
+			expect(tabId).toBe(15);
+		});
+
+		it("should return null when no matching PR tab exists", async () => {
+			const mock = getChromeMock();
+			mock.tabs.query.mockResolvedValue([{ id: 10, url: "https://github.com/owner/repo/pull/99" }]);
+
+			const tabId = await adapter.findExistingPrTab("https://github.com/owner/repo/pull/42");
+
+			expect(tabId).toBeNull();
+		});
+
+		it("should ignore tabs for a different PR number", async () => {
+			const mock = getChromeMock();
+			mock.tabs.query.mockResolvedValue([
+				{ id: 10, url: "https://github.com/owner/repo/pull/1" },
+				{ id: 20, url: "https://github.com/owner/repo/pull/2" },
+			]);
+
+			const tabId = await adapter.findExistingPrTab("https://github.com/owner/repo/pull/42");
+
+			expect(tabId).toBeNull();
+		});
+
+		it("should not match pull/42 when searching for pull/4 (no partial number match)", async () => {
+			const mock = getChromeMock();
+			mock.tabs.query.mockResolvedValue([{ id: 10, url: "https://github.com/owner/repo/pull/42" }]);
+
+			const tabId = await adapter.findExistingPrTab("https://github.com/owner/repo/pull/4");
+
+			expect(tabId).toBeNull();
+		});
+
+		it("should skip tabs without a url property", async () => {
+			const mock = getChromeMock();
+			mock.tabs.query.mockResolvedValue([
+				{ id: 5 },
+				{ id: 10, url: "https://github.com/owner/repo/pull/42" },
+			]);
+
+			const tabId = await adapter.findExistingPrTab("https://github.com/owner/repo/pull/42");
+
+			expect(tabId).toBe(10);
+		});
+	});
+
+	describe("activateTab", () => {
+		it("should call chrome.tabs.update and chrome.windows.update to focus the tab", async () => {
+			const mock = getChromeMock();
+			mock.tabs.update.mockResolvedValue({ id: 10, windowId: 5 });
+			mock.windows.update.mockResolvedValue(undefined);
+
+			await adapter.activateTab(10);
+
+			expect(mock.tabs.update).toHaveBeenCalledWith(10, { active: true });
+			expect(mock.windows.update).toHaveBeenCalledWith(5, { focused: true });
+		});
+
+		it("should not call chrome.windows.update when tab has no windowId", async () => {
+			const mock = getChromeMock();
+			mock.tabs.update.mockResolvedValue({ id: 10 });
+
+			await adapter.activateTab(10);
+
+			expect(mock.tabs.update).toHaveBeenCalledWith(10, { active: true });
+			expect(mock.windows.update).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("openNewTab", () => {
+		it("should call chrome.tabs.create with the url", async () => {
+			const mock = getChromeMock();
+			mock.tabs.create.mockResolvedValue({ id: 99 });
+
+			await adapter.openNewTab("https://github.com/owner/repo/pull/42");
+
+			expect(mock.tabs.create).toHaveBeenCalledWith({
+				url: "https://github.com/owner/repo/pull/42",
+			});
+		});
+	});
+
 	describe("getCurrentTabUrl", () => {
 		it("should return the URL of the active tab", async () => {
 			const mock = getChromeMock();

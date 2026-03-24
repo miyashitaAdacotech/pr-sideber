@@ -69,7 +69,13 @@ describe("message-handler FETCH_PRS", () => {
 			githubApi: mockGitHubApi,
 			prProcessor: mockPrProcessor,
 			badge: mockBadge,
-			tabNavigation: { navigateCurrentTab: vi.fn(), getCurrentTabUrl: vi.fn() },
+			tabNavigation: {
+				navigateCurrentTab: vi.fn(),
+				getCurrentTabUrl: vi.fn(),
+				findExistingPrTab: vi.fn().mockResolvedValue(null),
+				activateTab: vi.fn().mockResolvedValue(undefined),
+				openNewTab: vi.fn().mockResolvedValue(undefined),
+			},
 		});
 	});
 

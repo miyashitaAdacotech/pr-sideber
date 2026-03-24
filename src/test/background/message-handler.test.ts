@@ -361,10 +361,22 @@ describe("createMessageHandler", () => {
 	});
 
 	describe("NAVIGATE_TO_PR", () => {
-		let mockTabNavigation: { navigateCurrentTab: ReturnType<typeof vi.fn> };
+		let mockTabNavigation: {
+			navigateCurrentTab: ReturnType<typeof vi.fn>;
+			findExistingPrTab: ReturnType<typeof vi.fn>;
+			activateTab: ReturnType<typeof vi.fn>;
+			openNewTab: ReturnType<typeof vi.fn>;
+			getCurrentTabUrl: ReturnType<typeof vi.fn>;
+		};
 
 		beforeEach(() => {
-			mockTabNavigation = { navigateCurrentTab: vi.fn().mockResolvedValue(undefined) };
+			mockTabNavigation = {
+				navigateCurrentTab: vi.fn().mockResolvedValue(undefined),
+				findExistingPrTab: vi.fn().mockResolvedValue(null),
+				activateTab: vi.fn().mockResolvedValue(undefined),
+				openNewTab: vi.fn().mockResolvedValue(undefined),
+				getCurrentTabUrl: vi.fn().mockResolvedValue(null),
+			};
 			services = {
 				auth: mockAuth,
 				tabNavigation: mockTabNavigation,
@@ -372,8 +384,7 @@ describe("createMessageHandler", () => {
 			handler = createMessageHandler(services);
 		});
 
-		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
-		it("should call tabNavigation.navigateCurrentTab with the url", async () => {
+		it("should open new tab via tab reuse flow for PR URL", async () => {
 			const sendResponse = vi.fn();
 
 			handler(
@@ -386,14 +397,16 @@ describe("createMessageHandler", () => {
 				expect(sendResponse).toHaveBeenCalled();
 			});
 
-			expect(mockTabNavigation.navigateCurrentTab).toHaveBeenCalledWith(
+			expect(mockTabNavigation.findExistingPrTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/pull/42",
+			);
+			expect(mockTabNavigation.openNewTab).toHaveBeenCalledWith(
 				"https://github.com/owner/repo/pull/42",
 			);
 			const response = sendResponse.mock.calls[0][0];
 			expect(response).toEqual({ ok: true, data: undefined });
 		});
 
-		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
 		it("should respond with success when navigation succeeds", async () => {
 			const sendResponse = vi.fn();
 
@@ -411,9 +424,8 @@ describe("createMessageHandler", () => {
 			expect(response.ok).toBe(true);
 		});
 
-		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
-		it("should respond with error when navigateCurrentTab throws", async () => {
-			mockTabNavigation.navigateCurrentTab.mockRejectedValue(new Error("No active tab"));
+		it("should respond with error when openNewTab throws", async () => {
+			mockTabNavigation.openNewTab.mockRejectedValue(new Error("Tab creation failed"));
 			const sendResponse = vi.fn();
 
 			handler(
@@ -431,7 +443,6 @@ describe("createMessageHandler", () => {
 			expect(response.error.code).toBe("NAVIGATE_TO_PR_ERROR");
 		});
 
-		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
 		it("should respond with error when payload is missing", async () => {
 			const sendResponse = vi.fn();
 
@@ -443,6 +454,133 @@ describe("createMessageHandler", () => {
 
 			const response = sendResponse.mock.calls[0][0];
 			expect(response.ok).toBe(false);
+		});
+
+		it("should respond with error when url does not start with https://github.com/", async () => {
+			const sendResponse = vi.fn();
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "javascript:alert(1)" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+			const response = sendResponse.mock.calls[0][0];
+			expect(response.ok).toBe(false);
+			expect(response.error.code).toBe("NAVIGATE_TO_PR_ERROR");
+		});
+	});
+
+	describe("NAVIGATE_TO_PR (tab reuse)", () => {
+		let mockTabNavigation: {
+			navigateCurrentTab: ReturnType<typeof vi.fn>;
+			findExistingPrTab: ReturnType<typeof vi.fn>;
+			activateTab: ReturnType<typeof vi.fn>;
+			openNewTab: ReturnType<typeof vi.fn>;
+			getCurrentTabUrl: ReturnType<typeof vi.fn>;
+		};
+
+		beforeEach(() => {
+			mockTabNavigation = {
+				navigateCurrentTab: vi.fn().mockResolvedValue(undefined),
+				findExistingPrTab: vi.fn().mockResolvedValue(null),
+				activateTab: vi.fn().mockResolvedValue(undefined),
+				openNewTab: vi.fn().mockResolvedValue(undefined),
+				getCurrentTabUrl: vi.fn().mockResolvedValue(null),
+			};
+			services = {
+				auth: mockAuth,
+				tabNavigation: mockTabNavigation,
+			} as unknown as AppServices;
+			handler = createMessageHandler(services);
+		});
+
+		it("should activate existing tab when a matching PR tab is found", async () => {
+			mockTabNavigation.findExistingPrTab.mockResolvedValue(42);
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/10" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockTabNavigation.findExistingPrTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/pull/10",
+			);
+			expect(mockTabNavigation.activateTab).toHaveBeenCalledWith(42);
+			expect(mockTabNavigation.openNewTab).not.toHaveBeenCalled();
+			const response = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ ok: true, data: undefined });
+		});
+
+		it("should open new tab when no matching PR tab exists", async () => {
+			mockTabNavigation.findExistingPrTab.mockResolvedValue(null);
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/10" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockTabNavigation.findExistingPrTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/pull/10",
+			);
+			expect(mockTabNavigation.openNewTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/pull/10",
+			);
+			expect(mockTabNavigation.activateTab).not.toHaveBeenCalled();
+			const response = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ ok: true, data: undefined });
+		});
+
+		it("should fallback to openNewTab when activateTab fails (TOCTOU)", async () => {
+			mockTabNavigation.findExistingPrTab.mockResolvedValue(42);
+			mockTabNavigation.activateTab.mockRejectedValue(new Error("Tab not found"));
+			const sendResponse = vi.fn();
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/10" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+			expect(mockTabNavigation.activateTab).toHaveBeenCalledWith(42);
+			expect(mockTabNavigation.openNewTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/pull/10",
+			);
+			const response = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ ok: true, data: undefined });
+		});
+
+		it("should open new tab directly when URL is not a PR URL", async () => {
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/issues/5" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockTabNavigation.findExistingPrTab).not.toHaveBeenCalled();
+			expect(mockTabNavigation.openNewTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/issues/5",
+			);
 		});
 	});
 });

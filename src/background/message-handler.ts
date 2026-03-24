@@ -106,7 +106,31 @@ async function handleMessage(
 			}
 			case "NAVIGATE_TO_PR": {
 				const msg = message as RequestMessage<"NAVIGATE_TO_PR">;
-				await services.tabNavigation.navigateCurrentTab(msg.payload.url);
+				const { url } = msg.payload;
+				if (typeof url !== "string" || !url.startsWith("https://github.com/")) {
+					sendResponse({
+						ok: false,
+						error: { code: "NAVIGATE_TO_PR_ERROR", message: "Invalid URL" },
+					});
+					break;
+				}
+				const prBaseUrl = extractPrBaseUrl(url);
+
+				if (prBaseUrl) {
+					const existingTabId = await services.tabNavigation.findExistingPrTab(prBaseUrl);
+					if (existingTabId !== null) {
+						try {
+							await services.tabNavigation.activateTab(existingTabId);
+						} catch {
+							await services.tabNavigation.openNewTab(url);
+						}
+					} else {
+						await services.tabNavigation.openNewTab(url);
+					}
+				} else {
+					await services.tabNavigation.openNewTab(url);
+				}
+
 				sendResponse({ ok: true, data: undefined });
 				break;
 			}
