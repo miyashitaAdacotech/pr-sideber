@@ -69,6 +69,7 @@ describe("message-handler FETCH_PRS", () => {
 			githubApi: mockGitHubApi,
 			prProcessor: mockPrProcessor,
 			badge: mockBadge,
+			tabNavigation: { navigateCurrentTab: vi.fn(), getCurrentTabUrl: vi.fn() },
 		});
 	});
 

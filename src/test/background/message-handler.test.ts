@@ -359,4 +359,90 @@ describe("createMessageHandler", () => {
 			expect(response.ok).toBe(false);
 		});
 	});
+
+	describe("NAVIGATE_TO_PR", () => {
+		let mockTabNavigation: { navigateCurrentTab: ReturnType<typeof vi.fn> };
+
+		beforeEach(() => {
+			mockTabNavigation = { navigateCurrentTab: vi.fn().mockResolvedValue(undefined) };
+			services = {
+				auth: mockAuth,
+				tabNavigation: mockTabNavigation,
+			} as unknown as AppServices;
+			handler = createMessageHandler(services);
+		});
+
+		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
+		it("should call tabNavigation.navigateCurrentTab with the url", async () => {
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/42" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockTabNavigation.navigateCurrentTab).toHaveBeenCalledWith(
+				"https://github.com/owner/repo/pull/42",
+			);
+			const response = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ ok: true, data: undefined });
+		});
+
+		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
+		it("should respond with success when navigation succeeds", async () => {
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/1" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			const response = sendResponse.mock.calls[0][0];
+			expect(response.ok).toBe(true);
+		});
+
+		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
+		it("should respond with error when navigateCurrentTab throws", async () => {
+			mockTabNavigation.navigateCurrentTab.mockRejectedValue(new Error("No active tab"));
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/42" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			const response = sendResponse.mock.calls[0][0];
+			expect(response.ok).toBe(false);
+			expect(response.error.code).toBe("NAVIGATE_TO_PR_ERROR");
+		});
+
+		// NOTE: RED フェーズでは MESSAGE_TYPES に NAVIGATE_TO_PR がないため isRequestMessage で弾かれタイムアウトで失敗する
+		it("should respond with error when payload is missing", async () => {
+			const sendResponse = vi.fn();
+
+			handler({ type: "NAVIGATE_TO_PR" }, createTrustedSender(), sendResponse);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			const response = sendResponse.mock.calls[0][0];
+			expect(response.ok).toBe(false);
+		});
+	});
 });

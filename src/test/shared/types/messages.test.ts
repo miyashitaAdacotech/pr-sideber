@@ -10,7 +10,8 @@ describe("messages", () => {
 			expect(MESSAGE_TYPES).toContain("AUTH_DEVICE_POLL");
 			expect(MESSAGE_TYPES).toContain("FETCH_PRS");
 			expect(MESSAGE_TYPES).toContain("UPDATE_BADGE");
-			expect(MESSAGE_TYPES).toHaveLength(6);
+			expect(MESSAGE_TYPES).toContain("NAVIGATE_TO_PR");
+			expect(MESSAGE_TYPES).toHaveLength(7);
 		});
 	});
 

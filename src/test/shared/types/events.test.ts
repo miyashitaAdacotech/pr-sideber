@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCacheUpdatedEvent } from "../../../shared/types/events";
+import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../../shared/types/events";
 
 describe("isCacheUpdatedEvent", () => {
 	it("should return true for a valid CacheUpdatedEvent", () => {
@@ -66,5 +66,52 @@ describe("isCacheUpdatedEvent", () => {
 			lastUpdatedAt: "",
 		};
 		expect(isCacheUpdatedEvent(event)).toBe(false);
+	});
+});
+
+describe("isTabUrlChangedEvent", () => {
+	it("should return true for a valid TAB_URL_CHANGED event", () => {
+		const event = {
+			type: "TAB_URL_CHANGED",
+			url: "https://github.com/owner/repo/pull/1",
+		};
+		expect(isTabUrlChangedEvent(event)).toBe(true);
+	});
+
+	it("should return false when type is not TAB_URL_CHANGED", () => {
+		const event = {
+			type: "CACHE_UPDATED",
+			url: "https://github.com/owner/repo/pull/1",
+		};
+		expect(isTabUrlChangedEvent(event)).toBe(false);
+	});
+
+	it("should return false when url is missing", () => {
+		const event = { type: "TAB_URL_CHANGED" };
+		expect(isTabUrlChangedEvent(event)).toBe(false);
+	});
+
+	it("should return false when url is not a string", () => {
+		const event = { type: "TAB_URL_CHANGED", url: 12345 };
+		expect(isTabUrlChangedEvent(event)).toBe(false);
+	});
+
+	it("should return false for null", () => {
+		expect(isTabUrlChangedEvent(null)).toBe(false);
+	});
+
+	it("should return false for undefined", () => {
+		expect(isTabUrlChangedEvent(undefined)).toBe(false);
+	});
+
+	it("should return false for non-object values", () => {
+		expect(isTabUrlChangedEvent("string")).toBe(false);
+		expect(isTabUrlChangedEvent(42)).toBe(false);
+		expect(isTabUrlChangedEvent(true)).toBe(false);
+	});
+
+	it("should return false when url is an empty string", () => {
+		const event = { type: "TAB_URL_CHANGED", url: "" };
+		expect(isTabUrlChangedEvent(event)).toBe(false);
 	});
 });

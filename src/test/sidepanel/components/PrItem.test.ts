@@ -1,5 +1,5 @@
 import { mount, unmount } from "svelte";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PrItemDto } from "../../../domain/ports/pr-processor.port";
 import PrItem from "../../../sidepanel/components/PrItem.svelte";
 
@@ -71,5 +71,100 @@ describe("PrItem", () => {
 		const authorEl = document.querySelector(".pr-author");
 		expect(authorEl).not.toBeNull();
 		expect(authorEl?.textContent?.trim()).toBe(longName);
+	});
+
+	it("should call onNavigate when clicked normally", () => {
+		const onNavigate = vi.fn();
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), onNavigate, isActive: false },
+		});
+		const prItem = document.querySelector(".pr-item") as HTMLElement;
+		expect(prItem).not.toBeNull();
+		prItem.click();
+		expect(onNavigate).toHaveBeenCalledWith("https://github.com/owner/repo/pull/42");
+	});
+
+	it("should not call onNavigate on Ctrl+click", () => {
+		const onNavigate = vi.fn();
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), onNavigate, isActive: false },
+		});
+		const prItem = document.querySelector(".pr-item") as HTMLElement;
+		expect(prItem).not.toBeNull();
+		const ctrlClickEvent = new MouseEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			ctrlKey: true,
+		});
+		prItem.dispatchEvent(ctrlClickEvent);
+		expect(onNavigate).not.toHaveBeenCalled();
+	});
+
+	it("should have .active class when isActive is true", () => {
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), isActive: true },
+		});
+		const prItem = document.querySelector(".pr-item");
+		expect(prItem).not.toBeNull();
+		expect(prItem?.classList.contains("active")).toBe(true);
+	});
+
+	it("should not have .active class when isActive is false", () => {
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), isActive: false },
+		});
+		const prItem = document.querySelector(".pr-item");
+		expect(prItem).not.toBeNull();
+		expect(prItem?.classList.contains("active")).toBe(false);
+	});
+
+	it("should call onNavigate when clicking an already active PR", () => {
+		const onNavigate = vi.fn();
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), onNavigate, isActive: true },
+		});
+		const prItem = document.querySelector(".pr-item") as HTMLElement;
+		expect(prItem).not.toBeNull();
+		prItem.click();
+		expect(onNavigate).toHaveBeenCalledWith("https://github.com/owner/repo/pull/42");
+	});
+
+	it("should not call onNavigate on Meta+click", () => {
+		const onNavigate = vi.fn();
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), onNavigate, isActive: false },
+		});
+		const prItem = document.querySelector(".pr-item") as HTMLElement;
+		expect(prItem).not.toBeNull();
+		const metaClickEvent = new MouseEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			metaKey: true,
+		});
+		prItem.dispatchEvent(metaClickEvent);
+		expect(onNavigate).not.toHaveBeenCalled();
+	});
+
+	it("should not call onNavigate on middle-click (auxclick)", () => {
+		const onNavigate = vi.fn();
+		component = mount(PrItem, {
+			target: document.body,
+			props: { pr: createPrItemDto(), onNavigate, isActive: false },
+		});
+		const prItem = document.querySelector(".pr-item") as HTMLElement;
+		expect(prItem).not.toBeNull();
+		const middleClickEvent = new MouseEvent("auxclick", {
+			bubbles: true,
+			cancelable: true,
+			button: 1,
+		});
+		prItem.dispatchEvent(middleClickEvent);
+		expect(onNavigate).not.toHaveBeenCalled();
 	});
 });
