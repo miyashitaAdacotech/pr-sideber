@@ -43,10 +43,10 @@ export function initializeApp(): AppServices {
 	chrome.runtime.onMessage.addListener(handler);
 
 	// タブ変更リスナー: アクティブタブの URL 変更を Side Panel に通知
-	async function onTabActivated(_activeInfo: { tabId: number; windowId: number }): Promise<void> {
+	async function onTabActivated(activeInfo: { tabId: number; windowId: number }): Promise<void> {
 		try {
-			const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-			const url = tabs[0]?.url;
+			const tab = await chrome.tabs.get(activeInfo.tabId);
+			const url = tab?.url;
 			if (url) {
 				await chrome.runtime.sendMessage({ type: "TAB_URL_CHANGED", url });
 			}

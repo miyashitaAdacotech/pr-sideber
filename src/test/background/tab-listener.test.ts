@@ -47,10 +47,11 @@ describe("tab-listener (bootstrap)", () => {
 
 	describe("onActivated (tab switch)", () => {
 		it("should send TAB_URL_CHANGED message when tab is activated", async () => {
-			// tabs.query で現在のタブ URL を返す
-			vi.mocked(chrome.tabs.query).mockResolvedValue([
-				{ id: 1, url: "https://github.com/owner/repo/pull/42" } as chrome.tabs.Tab,
-			] as unknown as undefined);
+			// tabs.get で指定タブの情報を返す
+			vi.mocked(chrome.tabs.get).mockResolvedValue({
+				id: 1,
+				url: "https://github.com/owner/repo/pull/42",
+			} as chrome.tabs.Tab);
 
 			const initializeApp = await loadInitializeApp();
 			initializeApp();
@@ -62,14 +63,15 @@ describe("tab-listener (bootstrap)", () => {
 
 			await onActivatedListener({ tabId: 1, windowId: 1 });
 
+			expect(chrome.tabs.get).toHaveBeenCalledWith(1);
 			expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
 				type: "TAB_URL_CHANGED",
 				url: "https://github.com/owner/repo/pull/42",
 			});
 		});
 
-		it("should not crash when chrome.tabs.query rejects", async () => {
-			vi.mocked(chrome.tabs.query).mockRejectedValue(new Error("query failed"));
+		it("should not crash when chrome.tabs.get rejects", async () => {
+			vi.mocked(chrome.tabs.get).mockRejectedValue(new Error("tab not found"));
 
 			const initializeApp = await loadInitializeApp();
 			initializeApp();

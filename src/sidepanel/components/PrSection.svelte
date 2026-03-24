@@ -15,6 +15,8 @@
 
 	let open = $state(initialOpen);
 
+	const activeTabBaseUrl = $derived(activeTabUrl != null ? extractPrBaseUrl(activeTabUrl) : null);
+
 	function toggle() {
 		open = !open;
 	}
@@ -33,7 +35,7 @@
 				<p class="empty-message">PR がありません</p>
 			{:else}
 				{#each items as pr (pr.url)}
-					<PrItem {pr} {onNavigate} isActive={activeTabUrl != null && extractPrBaseUrl(activeTabUrl) === extractPrBaseUrl(pr.url)} />
+					<PrItem {pr} {onNavigate} isActive={activeTabBaseUrl != null && activeTabBaseUrl === extractPrBaseUrl(pr.url)} />
 				{/each}
 			{/if}
 		</div>
