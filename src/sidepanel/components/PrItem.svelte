@@ -31,7 +31,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="pr-item" class:active={isActive} onclick={handleClick}>
 	<a class="pr-title" href={safeUrl(pr.url)} target="_blank" rel="noopener noreferrer">
-		#{pr.number} {pr.title}
+		{pr.title} <span class="pr-number">#{pr.number}</span>
 	</a>
 	<div class="pr-meta">
 		<span class="pr-author">{pr.author}</span>
@@ -91,6 +91,11 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		flex-shrink: 0;
+	}
+
+	.pr-number {
+		color: var(--color-text-secondary);
+		margin-left: 0.25rem;
 	}
 
 	.pr-badges {
