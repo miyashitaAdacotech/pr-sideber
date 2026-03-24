@@ -11,6 +11,8 @@ const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
 };
 const FALLBACK_ERROR_MESSAGE = "エラーが発生しました。もう一度お試しください。";
 
+const ALLOWED_VERIFICATION_URI_PREFIX = "https://github.com/";
+
 function toUserFacingMessage(error: unknown): string {
 	if (error instanceof AuthError) {
 		return AUTH_ERROR_MESSAGES[error.code] ?? FALLBACK_ERROR_MESSAGE;
@@ -24,6 +26,7 @@ export type DeviceFlowController = {
 	readonly waitForAuthorization: () => Promise<void>;
 	readonly startAndWait: () => Promise<void>;
 	readonly subscribe: (listener: (state: DeviceFlowState) => void) => () => void;
+	readonly openVerificationUri: (uri: string) => void;
 };
 
 type PendingRequest = {
@@ -108,11 +111,18 @@ export function createDeviceFlowController(
 		};
 	}
 
+	function openVerificationUri(uri: string): void {
+		if (uri.startsWith(ALLOWED_VERIFICATION_URI_PREFIX)) {
+			chrome.tabs.create({ url: uri });
+		}
+	}
+
 	return {
 		getState: () => state,
 		startFlow,
 		waitForAuthorization,
 		startAndWait,
 		subscribe,
+		openVerificationUri,
 	};
 }

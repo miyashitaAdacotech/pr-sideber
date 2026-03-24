@@ -10,13 +10,16 @@
 
 	let flowState = $state<DeviceFlowState>(controller.getState());
 	let inProgress = $state(false);
-	let lastUserCode = $state<string | null>(null);
+	const initialState = controller.getState();
+	let lastUserCode = $state<string | null>(initialState.phase === "awaiting_user" ? initialState.userCode : null);
+	let lastVerificationUri = $state<string | null>(initialState.phase === "awaiting_user" ? initialState.verificationUri : null);
 
 	$effect(() => {
 		return controller.subscribe((state) => {
 			flowState = state;
 			if (state.phase === "awaiting_user") {
 				lastUserCode = state.userCode;
+				lastVerificationUri = state.verificationUri;
 			}
 		});
 	});
@@ -39,8 +42,9 @@
 	}
 
 	function openVerificationUri() {
-		if (flowState.phase === "awaiting_user" && flowState.verificationUri.startsWith("https://")) {
-			window.open(flowState.verificationUri, "_blank");
+		const uri = flowState.phase === "awaiting_user" ? flowState.verificationUri : lastVerificationUri;
+		if (uri !== null && uri.startsWith("https://github.com/")) {
+			controller.openVerificationUri(uri);
 		}
 	}
 </script>
@@ -69,13 +73,14 @@
 				<button class="copy-btn" onclick={handleCopyCode}>Copy</button>
 			</div>
 
-			{#if flowState.phase === "awaiting_user"}
+			{#if flowState.phase === "awaiting_user" || (flowState.phase === "polling" && lastVerificationUri !== null)}
 				<a
 					class="verification-link"
-					href={flowState.verificationUri}
+					href={flowState.phase === "awaiting_user" ? flowState.verificationUri : lastVerificationUri}
+					rel="noopener noreferrer"
 					onclick={(e) => { e.preventDefault(); openVerificationUri(); }}
 				>
-					{flowState.verificationUri} を開く
+					{flowState.phase === "awaiting_user" ? flowState.verificationUri : lastVerificationUri} を開く
 				</a>
 			{/if}
 
