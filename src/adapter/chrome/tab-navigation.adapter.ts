@@ -1,8 +1,17 @@
 import type { TabNavigationPort } from "../../domain/ports/tab-navigation.port";
 import { extractPrBaseUrl } from "../../shared/utils/github-url";
 
+const ALLOWED_URL_PREFIX = "https://github.com/";
+
+function assertGitHubUrl(url: string): void {
+	if (!url.startsWith(ALLOWED_URL_PREFIX)) {
+		throw new Error(`URL must start with ${ALLOWED_URL_PREFIX}, got: ${url}`);
+	}
+}
+
 export class TabNavigationAdapter implements TabNavigationPort {
 	async navigateCurrentTab(url: string): Promise<void> {
+		assertGitHubUrl(url);
 		const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
 		const activeTab = tabs[0];
 		if (!activeTab?.id) {
@@ -37,6 +46,7 @@ export class TabNavigationAdapter implements TabNavigationPort {
 	}
 
 	async openNewTab(url: string): Promise<void> {
+		assertGitHubUrl(url);
 		await chrome.tabs.create({ url });
 	}
 
@@ -50,6 +60,7 @@ export class TabNavigationAdapter implements TabNavigationPort {
 	}
 
 	async navigateTabToUrl(tabId: number, url: string): Promise<void> {
+		assertGitHubUrl(url);
 		await chrome.tabs.update(tabId, { url });
 	}
 }

@@ -689,6 +689,29 @@ describe("createMessageHandler", () => {
 			expect(response).toEqual({ ok: true, data: undefined });
 		});
 
+		it("should not open new tab when navigateTabToUrl fails after activateTab succeeds", async () => {
+			mockTabNavigation.findExistingPrTab.mockResolvedValue(42);
+			mockTabNavigation.getTabUrl.mockResolvedValue("https://github.com/owner/repo/pull/10/files");
+			mockTabNavigation.navigateTabToUrl.mockRejectedValue(new Error("Tab update failed"));
+			const sendResponse = vi.fn();
+
+			handler(
+				{ type: "NAVIGATE_TO_PR", payload: { url: "https://github.com/owner/repo/pull/10" } },
+				createTrustedSender(),
+				sendResponse,
+			);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockTabNavigation.activateTab).toHaveBeenCalledWith(42);
+			expect(mockTabNavigation.navigateTabToUrl).toHaveBeenCalled();
+			expect(mockTabNavigation.openNewTab).not.toHaveBeenCalled();
+			const response = sendResponse.mock.calls[0][0];
+			expect(response).toEqual({ ok: true, data: undefined });
+		});
+
 		it("should activate tab without navigating when getTabUrl rejects", async () => {
 			mockTabNavigation.findExistingPrTab.mockResolvedValue(42);
 			mockTabNavigation.getTabUrl.mockRejectedValue(new Error("Tab disappeared"));

@@ -60,19 +60,6 @@ struct ProcessedPrsResult {
     review_requests: PrListDto,
 }
 
-/// PR URL からベース URL (PR トップページ) を抽出する。
-/// PR URL でなければ null を返す。
-#[wasm_bindgen(js_name = "extractPrBaseUrl")]
-pub fn extract_pr_base_url(url: &str) -> Option<String> {
-    usecase::url::extract_pr_base_url(url)
-}
-
-/// URL が PR のサブページかどうかを判定する。
-#[wasm_bindgen(js_name = "isPrSubPage")]
-pub fn is_pr_sub_page(url: &str) -> bool {
-    usecase::url::is_pr_sub_page(url)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

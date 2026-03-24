@@ -47,6 +47,18 @@ describe("TabNavigationAdapter", () => {
 			).rejects.toThrow();
 		});
 
+		it("should throw when url does not start with https://github.com/", async () => {
+			await expect(adapter.navigateCurrentTab("javascript:alert(1)")).rejects.toThrow(
+				"URL must start with https://github.com/",
+			);
+		});
+
+		it("should throw for http://github.com/ (non-https)", async () => {
+			await expect(adapter.navigateCurrentTab("http://github.com/owner/repo")).rejects.toThrow(
+				"URL must start with https://github.com/",
+			);
+		});
+
 		it("should propagate error when chrome.tabs.update rejects", async () => {
 			const mock = getChromeMock();
 			mock.tabs.query.mockResolvedValue([{ id: 42, url: "https://github.com/old" }]);
@@ -160,6 +172,18 @@ describe("TabNavigationAdapter", () => {
 				url: "https://github.com/owner/repo/pull/42",
 			});
 		});
+
+		it("should throw when url does not start with https://github.com/", async () => {
+			await expect(adapter.openNewTab("javascript:alert(1)")).rejects.toThrow(
+				"URL must start with https://github.com/",
+			);
+		});
+
+		it("should throw for http://github.com/ (non-https)", async () => {
+			await expect(adapter.openNewTab("http://github.com/owner/repo")).rejects.toThrow(
+				"URL must start with https://github.com/",
+			);
+		});
 	});
 
 	describe("getTabUrl", () => {
@@ -214,6 +238,18 @@ describe("TabNavigationAdapter", () => {
 			await expect(
 				adapter.navigateTabToUrl(42, "https://github.com/owner/repo/pull/10"),
 			).rejects.toThrow("No tab with id: 42");
+		});
+
+		it("should throw when url does not start with https://github.com/", async () => {
+			await expect(adapter.navigateTabToUrl(42, "javascript:alert(1)")).rejects.toThrow(
+				"URL must start with https://github.com/",
+			);
+		});
+
+		it("should throw for http://github.com/ (non-https)", async () => {
+			await expect(adapter.navigateTabToUrl(42, "http://github.com/owner/repo")).rejects.toThrow(
+				"URL must start with https://github.com/",
+			);
 		});
 	});
 
