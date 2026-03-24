@@ -1,6 +1,27 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PrSize {
+    XS,
+    S,
+    M,
+    L,
+    XL,
+}
+
+impl PrSize {
+    pub fn as_label(&self) -> &'static str {
+        match self {
+            PrSize::XS => "XS",
+            PrSize::S => "S",
+            PrSize::M => "M",
+            PrSize::L => "L",
+            PrSize::XL => "XL",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalStatus {
     /// 少なくとも1人が承認し、変更要求がない状態。
     Approved,
@@ -39,6 +60,39 @@ pub enum MergeableStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- PrSize ---
+
+    #[test]
+    fn pr_size_serde_roundtrip() {
+        let variants = [PrSize::XS, PrSize::S, PrSize::M, PrSize::L, PrSize::XL];
+        for variant in &variants {
+            let json = serde_json::to_string(variant).expect("serialize should succeed");
+            let restored: PrSize = serde_json::from_str(&json).expect("deserialize should succeed");
+            assert_eq!(*variant, restored);
+        }
+    }
+
+    #[test]
+    fn pr_size_as_label_returns_correct_strings() {
+        assert_eq!(PrSize::XS.as_label(), "XS");
+        assert_eq!(PrSize::S.as_label(), "S");
+        assert_eq!(PrSize::M.as_label(), "M");
+        assert_eq!(PrSize::L.as_label(), "L");
+        assert_eq!(PrSize::XL.as_label(), "XL");
+    }
+
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn pr_size_copy_clone() {
+        let original = PrSize::M;
+        let copied = original; // Copy
+        let cloned = original.clone(); // Clone
+        assert_eq!(original, copied);
+        assert_eq!(original, cloned);
+    }
+
+    // --- ApprovalStatus ---
 
     #[test]
     fn approval_status_serde_roundtrip() {

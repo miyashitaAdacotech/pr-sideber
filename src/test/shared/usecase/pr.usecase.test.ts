@@ -30,6 +30,7 @@ describe("pr usecase", () => {
 					deletions: 5,
 					createdAt: "2026-03-20T00:00:00Z",
 					updatedAt: "2026-03-21T00:00:00Z",
+					sizeLabel: "S",
 				},
 			],
 			totalCount: 1,

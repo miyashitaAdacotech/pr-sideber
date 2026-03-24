@@ -1,5 +1,16 @@
 use domain::error::DomainError;
-use domain::status::{ApprovalStatus, CiStatus, MergeableStatus};
+use domain::status::{ApprovalStatus, CiStatus, MergeableStatus, PrSize};
+
+pub fn determine_pr_size(additions: u32, deletions: u32) -> PrSize {
+    let total = additions.saturating_add(deletions);
+    match total {
+        0..=10 => PrSize::XS,
+        11..=50 => PrSize::S,
+        51..=200 => PrSize::M,
+        201..=500 => PrSize::L,
+        _ => PrSize::XL,
+    }
+}
 
 pub fn determine_approval_status(
     review_decision: Option<&str>,
@@ -237,5 +248,63 @@ mod tests {
             result.is_err(),
             "lowercase should return an error (only uppercase accepted)"
         );
+    }
+
+    // --- determine_pr_size ---
+
+    #[test]
+    fn pr_size_zero_changes_is_xs() {
+        assert_eq!(determine_pr_size(0, 0), PrSize::XS);
+    }
+
+    #[test]
+    fn pr_size_10_total_is_xs() {
+        assert_eq!(determine_pr_size(5, 5), PrSize::XS);
+    }
+
+    #[test]
+    fn pr_size_11_total_is_s() {
+        assert_eq!(determine_pr_size(11, 0), PrSize::S);
+    }
+
+    #[test]
+    fn pr_size_50_total_is_s() {
+        assert_eq!(determine_pr_size(25, 25), PrSize::S);
+    }
+
+    #[test]
+    fn pr_size_51_total_is_m() {
+        assert_eq!(determine_pr_size(51, 0), PrSize::M);
+    }
+
+    #[test]
+    fn pr_size_200_total_is_m() {
+        assert_eq!(determine_pr_size(100, 100), PrSize::M);
+    }
+
+    #[test]
+    fn pr_size_201_total_is_l() {
+        assert_eq!(determine_pr_size(201, 0), PrSize::L);
+    }
+
+    #[test]
+    fn pr_size_500_total_is_l() {
+        assert_eq!(determine_pr_size(250, 250), PrSize::L);
+    }
+
+    #[test]
+    fn pr_size_501_total_is_xl() {
+        assert_eq!(determine_pr_size(501, 0), PrSize::XL);
+    }
+
+    #[test]
+    fn pr_size_u32_max_is_xl() {
+        assert_eq!(determine_pr_size(u32::MAX, 0), PrSize::XL);
+    }
+
+    #[test]
+    fn pr_size_u32_max_plus_one_no_overflow() {
+        // saturating_add を使わないと debug ビルドで panic する
+        assert_eq!(determine_pr_size(u32::MAX, 1), PrSize::XL);
     }
 }

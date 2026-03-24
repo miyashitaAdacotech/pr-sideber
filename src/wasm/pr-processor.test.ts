@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { PrProcessorPort, ProcessedPrsResult } from "../domain/ports/pr-processor.port";
+import type {
+	PrItemDto,
+	PrProcessorPort,
+	ProcessedPrsResult,
+} from "../domain/ports/pr-processor.port";
 
 describe("PrProcessorPort", () => {
 	it("interface is implementable with correct shape", async () => {
@@ -31,5 +35,28 @@ describe("PrProcessorPort", () => {
 		expect(result).toHaveProperty("reviewRequests");
 		expect(result.myPrs).toHaveProperty("items");
 		expect(result.myPrs).toHaveProperty("totalCount");
+	});
+
+	it("PrItemDto should include sizeLabel field", () => {
+		const item: PrItemDto = {
+			id: "PR_1",
+			number: 1,
+			title: "test",
+			author: "testuser",
+			url: "https://github.com/owner/repo/pull/1",
+			repository: "owner/repo",
+			isDraft: false,
+			approvalStatus: "Approved",
+			ciStatus: "Passed",
+			mergeableStatus: "Unknown",
+			additions: 10,
+			deletions: 5,
+			createdAt: "2026-03-20T00:00:00Z",
+			updatedAt: "2026-03-21T00:00:00Z",
+			sizeLabel: "S",
+		};
+
+		expect(item.sizeLabel).toBe("S");
+		expect(item).toHaveProperty("sizeLabel");
 	});
 });
