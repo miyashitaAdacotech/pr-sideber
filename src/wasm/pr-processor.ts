@@ -4,7 +4,11 @@ import { initializeWasm } from "./index";
 
 function isProcessedPrsResult(value: unknown): value is ProcessedPrsResult {
 	return (
-		typeof value === "object" && value !== null && "myPrs" in value && "reviewRequests" in value
+		typeof value === "object" &&
+		value !== null &&
+		"myPrs" in value &&
+		"reviewRequests" in value &&
+		"reviewRequestBadgeCount" in value
 	);
 }
 

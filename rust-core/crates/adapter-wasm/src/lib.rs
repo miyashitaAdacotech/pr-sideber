@@ -49,6 +49,7 @@ pub fn process_pull_requests(raw_json: &str) -> Result<JsValue, JsError> {
     serde_wasm_bindgen::to_value(&ProcessedPrsResult {
         my_prs: to_pr_list_dto(processed.my_prs),
         review_requests: to_pr_list_dto(processed.review_requests),
+        review_request_badge_count: processed.review_request_badge_count,
     })
     .map_err(|e| JsError::new(&e.to_string()))
 }
@@ -58,6 +59,7 @@ pub fn process_pull_requests(raw_json: &str) -> Result<JsValue, JsError> {
 struct ProcessedPrsResult {
     my_prs: PrListDto,
     review_requests: PrListDto,
+    review_request_badge_count: u32,
 }
 
 #[cfg(test)]
@@ -189,5 +191,58 @@ mod tests {
         assert_eq!(processed.my_prs[0].id(), "PR_1");
         assert_eq!(processed.review_requests.len(), 1);
         assert_eq!(processed.review_requests[0].id(), "PR_2");
+    }
+
+    #[test]
+    fn review_request_badge_count_excludes_draft_in_adapter() {
+        let json = r#"{
+            "data": {
+                "myPrs": { "edges": [] },
+                "reviewRequested": {
+                    "edges": [
+                        {
+                            "node": {
+                                "id": "PR_1",
+                                "title": "non-draft review",
+                                "url": "https://github.com/o/r/pull/1",
+                                "number": 1,
+                                "isDraft": false,
+                                "reviewDecision": null,
+                                "author": { "login": "bob" },
+                                "commits": { "nodes": [] },
+                                "repository": { "nameWithOwner": "o/r" },
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-02T00:00:00Z",
+                                "mergeable": null
+                            }
+                        },
+                        {
+                            "node": {
+                                "id": "PR_2",
+                                "title": "draft review",
+                                "url": "https://github.com/o/r/pull/2",
+                                "number": 2,
+                                "isDraft": true,
+                                "reviewDecision": null,
+                                "author": { "login": "charlie" },
+                                "commits": { "nodes": [] },
+                                "repository": { "nameWithOwner": "o/r" },
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-03T00:00:00Z",
+                                "mergeable": null
+                            }
+                        }
+                    ]
+                }
+            }
+        }"#;
+
+        let parsed = parser::parse_pull_request_nodes(json).expect("should parse");
+        let processed =
+            usecase::process::process_pull_requests(parsed.my_prs, parsed.review_requests);
+        // 一覧には DRAFT 含め 2 件
+        assert_eq!(processed.review_requests.len(), 2);
+        // バッジカウントは DRAFT 除外で 1 件
+        assert_eq!(processed.review_request_badge_count, 1);
     }
 }

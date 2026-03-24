@@ -40,6 +40,7 @@ describe("pr usecase", () => {
 			items: [],
 			totalCount: 0,
 		},
+		reviewRequestBadgeCount: 0,
 	};
 
 	beforeEach(() => {

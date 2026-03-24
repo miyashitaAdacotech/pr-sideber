@@ -91,7 +91,7 @@ export function initializeApp(): AppServices {
 			}
 		},
 		onRefreshComplete: (data) => {
-			badge.updateBadge(data.reviewRequests.totalCount).catch((err: unknown) => {
+			badge.updateBadge(data.reviewRequestBadgeCount).catch((err: unknown) => {
 				if (import.meta.env.DEV) {
 					console.error("[bootstrap] Failed to update badge:", err);
 				}

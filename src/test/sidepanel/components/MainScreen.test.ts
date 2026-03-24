@@ -8,6 +8,7 @@ function createMockFetchPrs(): () => Promise<ProcessedPrsResult & { hasMore: boo
 	return vi.fn(async () => ({
 		myPrs: { items: [], totalCount: 0 },
 		reviewRequests: { items: [], totalCount: 0 },
+		reviewRequestBadgeCount: 0,
 		hasMore: false,
 	}));
 }
@@ -127,6 +128,7 @@ describe("MainScreen", () => {
 			data: {
 				myPrs: { items: [], totalCount: 0 },
 				reviewRequests: { items: [], totalCount: 0 },
+				reviewRequestBadgeCount: 0,
 				hasMore: false,
 			},
 			lastUpdatedAt: "2026-03-22T12:00:00.000Z",
@@ -187,6 +189,7 @@ describe("MainScreen", () => {
 					totalCount: 1,
 				},
 				reviewRequests: { items: [], totalCount: 0 },
+				reviewRequestBadgeCount: 0,
 				hasMore: false,
 			},
 			lastUpdatedAt: "2026-03-23T10:00:00.000Z",

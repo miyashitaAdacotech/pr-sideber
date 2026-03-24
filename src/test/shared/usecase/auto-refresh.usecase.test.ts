@@ -46,6 +46,7 @@ describe("auto-refresh usecase", () => {
 			totalCount: 1,
 		},
 		reviewRequests: { items: [], totalCount: 0 },
+		reviewRequestBadgeCount: 0,
 		hasMore: false,
 	};
 
