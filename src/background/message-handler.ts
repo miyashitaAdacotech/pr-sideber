@@ -9,6 +9,7 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 	AUTH_STATUS: "Failed to check authentication status",
 	AUTH_DEVICE_CODE: "Device code request failed",
 	AUTH_DEVICE_POLL: "Device polling failed",
+	FETCH_EPIC_TREE: "Failed to fetch epic tree",
 	FETCH_ISSUES: "Failed to fetch issues",
 	FETCH_PRS: "Failed to fetch pull requests",
 	UPDATE_BADGE: "Failed to update badge",
@@ -158,6 +159,13 @@ async function handleMessage(
 				}
 
 				sendResponse({ ok: true, data: undefined });
+				break;
+			}
+			case "FETCH_EPIC_TREE": {
+				sendResponse({
+					ok: false,
+					error: { code: "NOT_IMPLEMENTED", message: "FETCH_EPIC_TREE not yet implemented" },
+				});
 				break;
 			}
 			case "FETCH_ISSUES": {

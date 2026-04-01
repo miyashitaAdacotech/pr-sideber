@@ -12,7 +12,8 @@ describe("messages", () => {
 			expect(MESSAGE_TYPES).toContain("UPDATE_BADGE");
 			expect(MESSAGE_TYPES).toContain("FETCH_ISSUES");
 			expect(MESSAGE_TYPES).toContain("NAVIGATE_TO_PR");
-			expect(MESSAGE_TYPES).toHaveLength(8);
+			expect(MESSAGE_TYPES).toContain("FETCH_EPIC_TREE");
+			expect(MESSAGE_TYPES).toHaveLength(9);
 		});
 	});
 
