@@ -33,11 +33,16 @@ function createMockFetchEpicTree(): () => Promise<EpicTreeDto> {
 	}));
 }
 
+function createMockGetClaudeSessions(): () => Promise<Record<string, never>> {
+	return vi.fn(async () => ({}));
+}
+
 function createDefaultProps() {
 	return {
 		onLogout: vi.fn(async () => {}),
 		fetchPrs: createMockFetchPrs(),
 		fetchEpicTree: createMockFetchEpicTree(),
+		getClaudeSessions: createMockGetClaudeSessions(),
 		getCachedPrs: createMockGetCachedPrs(),
 		loadPrsWithCache: createMockLoadPrsWithCache(),
 		subscribeToMessages: createMockSubscribeToMessages(),

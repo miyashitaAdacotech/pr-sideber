@@ -4,6 +4,7 @@ import { chromeSendMessage, subscribeToMessages } from "../adapter/chrome/messag
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
 import { TabNavigationAdapter } from "../adapter/chrome/tab-navigation.adapter";
 import type { EpicTreeDto } from "../domain/ports/epic-processor.port";
+import type { ClaudeSessionStorage } from "../shared/types/claude-session";
 import { createAuthUseCase } from "../shared/usecase/auth.usecase";
 import { createDeviceFlowController } from "../shared/usecase/device-flow.controller";
 import { createPrUseCase } from "../shared/usecase/pr.usecase";
@@ -30,12 +31,21 @@ async function fetchEpicTree(): Promise<EpicTreeDto> {
 	return response.data;
 }
 
+async function getClaudeSessions(): Promise<ClaudeSessionStorage> {
+	const response = await chromeSendMessage("GET_CLAUDE_SESSIONS");
+	if (!response.ok) {
+		throw new Error(response.error.message);
+	}
+	return response.data;
+}
+
 const app = mount(App, {
 	target,
 	props: {
 		authUseCase,
 		prUseCase,
 		fetchEpicTree,
+		getClaudeSessions,
 		deviceFlowController,
 		subscribeToMessages,
 		onNavigate: (url: string) => tabNavigationUseCase.navigateToPr(url),

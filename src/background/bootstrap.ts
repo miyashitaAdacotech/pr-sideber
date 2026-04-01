@@ -47,6 +47,9 @@ export function initializeApp(): AppServices {
 	const badge = createBadgeUseCase(badgeAdapter);
 	const tabNavigation = new TabNavigationAdapter();
 
+	const claudeSessionWatcher = new ClaudeSessionWatcher();
+	claudeSessionWatcher.startWatching();
+
 	const handler = createMessageHandler({
 		auth,
 		epicProcessor,
@@ -56,6 +59,7 @@ export function initializeApp(): AppServices {
 		issueProcessor,
 		badge,
 		tabNavigation,
+		claudeSessionWatcher,
 	});
 	chrome.runtime.onMessage.addListener(handler);
 
@@ -121,9 +125,6 @@ export function initializeApp(): AppServices {
 		}
 	});
 
-	const claudeSessionWatcher = new ClaudeSessionWatcher();
-	claudeSessionWatcher.startWatching();
-
 	let disposed = false;
 	const dispose = (): void => {
 		if (disposed) return;
@@ -152,6 +153,7 @@ export function initializeApp(): AppServices {
 		issueProcessor,
 		badge,
 		tabNavigation,
+		claudeSessionWatcher,
 		dispose,
 	};
 	return services;

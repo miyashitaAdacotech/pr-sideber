@@ -1,6 +1,7 @@
 import type { MessageType, RequestMessage, ResponseMessage } from "../shared/types/messages";
 import { isRequestMessage } from "../shared/types/messages";
 import { extractPrBaseUrl, isPrSubPage } from "../shared/utils/github-url";
+import type { ClaudeSessionWatcher } from "./claude-session-watcher";
 import type { AppServices } from "./types";
 
 /** メッセージタイプごとの汎用エラーメッセージ */
@@ -14,6 +15,7 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 	FETCH_PRS: "Failed to fetch pull requests",
 	UPDATE_BADGE: "Failed to update badge",
 	NAVIGATE_TO_PR: "Navigation failed",
+	GET_CLAUDE_SESSIONS: "Failed to get Claude sessions",
 };
 
 /** deviceCode の長さ制限 */
@@ -31,6 +33,7 @@ export function createMessageHandler(
 		| "issueProcessor"
 		| "badge"
 		| "tabNavigation"
+		| "claudeSessionWatcher"
 	>,
 ) {
 	return (
@@ -63,6 +66,7 @@ async function handleMessage(
 		| "issueProcessor"
 		| "badge"
 		| "tabNavigation"
+		| "claudeSessionWatcher"
 	>,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
@@ -186,6 +190,11 @@ async function handleMessage(
 				const rawJson = await services.issueApi.fetchIssues();
 				const result = await services.issueProcessor.processIssues(rawJson);
 				sendResponse({ ok: true, data: result });
+				break;
+			}
+			case "GET_CLAUDE_SESSIONS": {
+				const sessions = await services.claudeSessionWatcher.getSessions();
+				sendResponse({ ok: true, data: sessions });
 				break;
 			}
 			default: {

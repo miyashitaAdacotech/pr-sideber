@@ -3,7 +3,9 @@
 	import type { EpicTreeDto } from "../../domain/ports/epic-processor.port";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
+	import type { ClaudeSessionStorage } from "../../shared/types/claude-session";
 	import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../shared/types/events";
+	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
 	import EpicSection from "./EpicSection.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
@@ -13,6 +15,7 @@
 		onLogout: () => Promise<void>;
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
 		fetchEpicTree: () => Promise<EpicTreeDto>;
+		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
@@ -20,7 +23,7 @@
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
 
-	const { onLogout, fetchPrs, fetchEpicTree, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
+	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -43,7 +46,9 @@
 		}
 
 		try {
-			epicData = await fetchEpicTree();
+			const tree = await fetchEpicTree();
+			const sessions = await getClaudeSessions();
+			epicData = mergeSessionsIntoTree(tree, sessions);
 			epicError = null;
 		} catch (e: unknown) {
 			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
@@ -90,11 +95,12 @@
 				}
 			}
 
-			// Epic ツリーを取得
+			// Epic ツリーを取得し、Claude セッション情報をマージ
 			try {
 				const tree = await fetchEpicTree();
+				const sessions = await getClaudeSessions();
 				if (!cancelled) {
-					epicData = tree;
+					epicData = mergeSessionsIntoTree(tree, sessions);
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {

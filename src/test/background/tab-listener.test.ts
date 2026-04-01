@@ -102,7 +102,9 @@ describe("tab-listener (bootstrap)", () => {
 			const initializeApp = await loadInitializeApp();
 			initializeApp();
 
-			const onUpdatedListener = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls[0]?.[0] as (
+			// ClaudeSessionWatcher が calls[0] を使うため、bootstrap の onTabUpdated は calls[1]
+			const onUpdatedCalls = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls;
+			const onUpdatedListener = onUpdatedCalls[onUpdatedCalls.length - 1]?.[0] as (
 				tabId: number,
 				changeInfo: { url?: string; status?: string },
 				tab: chrome.tabs.Tab,
@@ -125,7 +127,9 @@ describe("tab-listener (bootstrap)", () => {
 			const initializeApp = await loadInitializeApp();
 			initializeApp();
 
-			const onUpdatedListener = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls[0]?.[0] as (
+			// ClaudeSessionWatcher が calls[0] を使うため、bootstrap の onTabUpdated は最後
+			const onUpdatedCalls = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls;
+			const onUpdatedListener = onUpdatedCalls[onUpdatedCalls.length - 1]?.[0] as (
 				tabId: number,
 				changeInfo: { url?: string; status?: string },
 				tab: chrome.tabs.Tab,
@@ -147,7 +151,9 @@ describe("tab-listener (bootstrap)", () => {
 			const initializeApp = await loadInitializeApp();
 			initializeApp();
 
-			const onUpdatedListener = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls[0]?.[0] as (
+			// ClaudeSessionWatcher が calls[0] を使うため、bootstrap の onTabUpdated は最後
+			const onUpdatedCalls = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls;
+			const onUpdatedListener = onUpdatedCalls[onUpdatedCalls.length - 1]?.[0] as (
 				tabId: number,
 				changeInfo: { url?: string; status?: string },
 				tab: chrome.tabs.Tab,
@@ -173,7 +179,9 @@ describe("tab-listener (bootstrap)", () => {
 			const services = initializeApp();
 
 			const onActivatedHandler = vi.mocked(chrome.tabs.onActivated.addListener).mock.calls[0]?.[0];
-			const onUpdatedHandler = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls[0]?.[0];
+			// ClaudeSessionWatcher が onUpdated の calls[0] を使うため、bootstrap のハンドラは最後
+			const onUpdatedCalls = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls;
+			const onUpdatedHandler = onUpdatedCalls[onUpdatedCalls.length - 1]?.[0];
 
 			services.dispose();
 
