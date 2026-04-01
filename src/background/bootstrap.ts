@@ -9,6 +9,7 @@ import { IssueGraphQLClient } from "../adapter/github/issue-graphql-client";
 import { GitHubApiError } from "../shared/types/errors";
 import { createAutoRefreshUseCase } from "../shared/usecase/auto-refresh.usecase";
 import { createBadgeUseCase } from "../shared/usecase/badge.usecase";
+import { WasmEpicProcessor } from "../wasm/epic-processor";
 import { WasmIssueProcessor } from "../wasm/issue-processor";
 import { WasmPrProcessor } from "../wasm/pr-processor";
 import { createMessageHandler } from "./message-handler";
@@ -39,6 +40,7 @@ export function initializeApp(): AppServices {
 	const issueApi = new IssueGraphQLClient(getAccessToken);
 	const prProcessor = new WasmPrProcessor();
 	const issueProcessor = new WasmIssueProcessor();
+	const epicProcessor = new WasmEpicProcessor();
 
 	const badgeAdapter = createChromeBadgeAdapter();
 	const badge = createBadgeUseCase(badgeAdapter);
@@ -46,6 +48,7 @@ export function initializeApp(): AppServices {
 
 	const handler = createMessageHandler({
 		auth,
+		epicProcessor,
 		githubApi,
 		issueApi,
 		prProcessor,
@@ -138,6 +141,7 @@ export function initializeApp(): AppServices {
 
 	services = {
 		auth,
+		epicProcessor,
 		githubApi,
 		issueApi,
 		prProcessor,

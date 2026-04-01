@@ -23,7 +23,14 @@ const DEVICE_CODE_MAX_LENGTH = 256;
 export function createMessageHandler(
 	services: Pick<
 		AppServices,
-		"auth" | "githubApi" | "issueApi" | "prProcessor" | "issueProcessor" | "badge" | "tabNavigation"
+		| "auth"
+		| "epicProcessor"
+		| "githubApi"
+		| "issueApi"
+		| "prProcessor"
+		| "issueProcessor"
+		| "badge"
+		| "tabNavigation"
 	>,
 ) {
 	return (
@@ -48,7 +55,14 @@ export function createMessageHandler(
 async function handleMessage(
 	services: Pick<
 		AppServices,
-		"auth" | "githubApi" | "issueApi" | "prProcessor" | "issueProcessor" | "badge" | "tabNavigation"
+		| "auth"
+		| "epicProcessor"
+		| "githubApi"
+		| "issueApi"
+		| "prProcessor"
+		| "issueProcessor"
+		| "badge"
+		| "tabNavigation"
 	>,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
@@ -162,10 +176,10 @@ async function handleMessage(
 				break;
 			}
 			case "FETCH_EPIC_TREE": {
-				sendResponse({
-					ok: false,
-					error: { code: "NOT_IMPLEMENTED", message: "FETCH_EPIC_TREE not yet implemented" },
-				});
+				const issuesJson = await services.issueApi.fetchIssues();
+				const prsRaw = await services.githubApi.fetchPullRequests();
+				const result = await services.epicProcessor.processEpicTree(issuesJson, prsRaw.rawJson);
+				sendResponse({ ok: true, data: result });
 				break;
 			}
 			case "FETCH_ISSUES": {

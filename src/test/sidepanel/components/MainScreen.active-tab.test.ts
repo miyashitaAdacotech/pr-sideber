@@ -1,5 +1,6 @@
 import { mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { EpicTreeDto } from "../../../domain/ports/epic-processor.port";
 import type { ProcessedPrsResult } from "../../../domain/ports/pr-processor.port";
 import type { CachedPrData } from "../../../shared/types/cache";
 import MainScreen from "../../../sidepanel/components/MainScreen.svelte";
@@ -8,7 +9,8 @@ import { resetChromeMock, setupChromeMock } from "../../mocks/chrome.mock";
 function createPrData(): CachedPrData {
 	return {
 		data: {
-			myPrs: {
+			myPrs: { items: [], totalCount: 0 },
+			reviewRequests: {
 				items: [
 					{
 						id: "PR_100",
@@ -31,12 +33,15 @@ function createPrData(): CachedPrData {
 				],
 				totalCount: 1,
 			},
-			reviewRequests: { items: [], totalCount: 0 },
-			reviewRequestBadgeCount: 0,
+			reviewRequestBadgeCount: 1,
 			hasMore: false,
 		},
 		lastUpdatedAt: "2026-03-23T10:00:00.000Z",
 	};
+}
+
+function createMockFetchEpicTree(): () => Promise<EpicTreeDto> {
+	return vi.fn(async () => ({ roots: [] }));
 }
 
 /**
@@ -54,6 +59,7 @@ function mountMainScreen(propsOverrides: Record<string, unknown> = {}): ReturnTy
 			reviewRequests: { items: [], totalCount: 0 },
 			hasMore: false,
 		})),
+		fetchEpicTree: createMockFetchEpicTree(),
 		getCachedPrs: vi.fn(async () => null),
 		loadPrsWithCache: vi.fn(async () => null),
 		subscribeToMessages: vi.fn((_callback: (message: unknown) => void) => vi.fn()),
@@ -135,7 +141,8 @@ describe("MainScreen active tab highlight", () => {
 	it("should switch highlight from PR-A to PR-B when TAB_URL_CHANGED fires with PR-B URL", async () => {
 		const twoPrData: CachedPrData = {
 			data: {
-				myPrs: {
+				myPrs: { items: [], totalCount: 0 },
+				reviewRequests: {
 					items: [
 						{
 							id: "PR_100",
@@ -176,8 +183,7 @@ describe("MainScreen active tab highlight", () => {
 					],
 					totalCount: 2,
 				},
-				reviewRequests: { items: [], totalCount: 0 },
-				reviewRequestBadgeCount: 0,
+				reviewRequestBadgeCount: 2,
 				hasMore: false,
 			},
 			lastUpdatedAt: "2026-03-23T12:00:00.000Z",

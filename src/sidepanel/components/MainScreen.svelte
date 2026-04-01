@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { untrack } from "svelte";
-	import type { IssueListDto } from "../../domain/ports/issue-processor.port";
+	import type { EpicTreeDto } from "../../domain/ports/epic-processor.port";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
 	import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../shared/types/events";
-	import IssueSection from "./IssueSection.svelte";
+	import EpicSection from "./EpicSection.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
 	import PrSection from "./PrSection.svelte";
@@ -12,7 +12,7 @@
 	type Props = {
 		onLogout: () => Promise<void>;
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
-		fetchIssues: () => Promise<IssueListDto>;
+		fetchEpicTree: () => Promise<EpicTreeDto>;
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
@@ -20,15 +20,15 @@
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
 
-	const { onLogout, fetchPrs, fetchIssues, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
+	const { onLogout, fetchPrs, fetchEpicTree, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let data = $state<(ProcessedPrsResult & { hasMore: boolean }) | null>(null);
 	let lastUpdatedAt = $state<string | undefined>(undefined);
 	let activeTabUrl = $state<string | null>(null);
-	let issueData = $state<IssueListDto | null>(null);
-	let issueError = $state<string | null>(null);
+	let epicData = $state<EpicTreeDto | null>(null);
+	let epicError = $state<string | null>(null);
 
 	async function loadPrs(): Promise<void> {
 		loading = true;
@@ -43,10 +43,10 @@
 		}
 
 		try {
-			issueData = await fetchIssues();
-			issueError = null;
+			epicData = await fetchEpicTree();
+			epicError = null;
 		} catch (e: unknown) {
-			issueError = e instanceof Error ? e.message : "Failed to fetch issues";
+			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
 		}
 	}
 
@@ -90,15 +90,15 @@
 				}
 			}
 
-			// Issue を取得
+			// Epic ツリーを取得
 			try {
-				const issues = await fetchIssues();
+				const tree = await fetchEpicTree();
 				if (!cancelled) {
-					issueData = issues;
+					epicData = tree;
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
-					issueError = e instanceof Error ? e.message : "Failed to fetch issues";
+					epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
 				}
 			}
 
@@ -189,11 +189,10 @@
 				<p class="error-text">{error}</p>
 			</div>
 		{/if}
-		<PrSection title="My PRs" items={data.myPrs.items} {onNavigate} {activeTabUrl} />
-		{#if issueError}
-			<div class="error-banner"><p class="error-text">{issueError}</p></div>
+		{#if epicError}
+			<div class="error-banner"><p class="error-text">{epicError}</p></div>
 		{/if}
-		<IssueSection title="My Issues" items={issueData?.items ?? []} {onNavigate} {activeTabUrl} />
+		<EpicSection tree={epicData} {onNavigate} {activeTabUrl} />
 		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} {activeTabUrl} />
 	{/if}
 </main>

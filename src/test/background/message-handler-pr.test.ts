@@ -66,6 +66,7 @@ describe("message-handler FETCH_PRS", () => {
 		mockBadge = createMockBadge();
 		handler = createMessageHandler({
 			auth: mockAuth,
+			epicProcessor: { processEpicTree: vi.fn() },
 			githubApi: mockGitHubApi,
 			issueApi: { fetchIssues: vi.fn() },
 			prProcessor: mockPrProcessor,

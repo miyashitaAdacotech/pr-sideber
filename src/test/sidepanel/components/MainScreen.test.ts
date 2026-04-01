@@ -1,6 +1,6 @@
 import { mount, tick, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { IssueListDto } from "../../../domain/ports/issue-processor.port";
+import type { EpicTreeDto } from "../../../domain/ports/epic-processor.port";
 import type { ProcessedPrsResult } from "../../../domain/ports/pr-processor.port";
 import MainScreen from "../../../sidepanel/components/MainScreen.svelte";
 import { resetChromeMock, setupChromeMock } from "../../mocks/chrome.mock";
@@ -27,10 +27,9 @@ function createMockSubscribeToMessages(): (callback: (message: unknown) => void)
 	return vi.fn((_callback: (message: unknown) => void) => unsubscribe);
 }
 
-function createMockFetchIssues(): () => Promise<IssueListDto> {
+function createMockFetchEpicTree(): () => Promise<EpicTreeDto> {
 	return vi.fn(async () => ({
-		items: [],
-		totalCount: 0,
+		roots: [],
 	}));
 }
 
@@ -38,7 +37,7 @@ function createDefaultProps() {
 	return {
 		onLogout: vi.fn(async () => {}),
 		fetchPrs: createMockFetchPrs(),
-		fetchIssues: createMockFetchIssues(),
+		fetchEpicTree: createMockFetchEpicTree(),
 		getCachedPrs: createMockGetCachedPrs(),
 		loadPrsWithCache: createMockLoadPrsWithCache(),
 		subscribeToMessages: createMockSubscribeToMessages(),
@@ -174,7 +173,8 @@ describe("MainScreen", () => {
 		const onNavigate = vi.fn();
 		const mockGetCachedPrs = vi.fn(async () => ({
 			data: {
-				myPrs: {
+				myPrs: { items: [], totalCount: 0 },
+				reviewRequests: {
 					items: [
 						{
 							id: "PR_100",
@@ -197,8 +197,7 @@ describe("MainScreen", () => {
 					],
 					totalCount: 1,
 				},
-				reviewRequests: { items: [], totalCount: 0 },
-				reviewRequestBadgeCount: 0,
+				reviewRequestBadgeCount: 1,
 				hasMore: false,
 			},
 			lastUpdatedAt: "2026-03-23T10:00:00.000Z",
