@@ -20,7 +20,10 @@ const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
 
 export function createMessageHandler(
-	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge" | "tabNavigation">,
+	services: Pick<
+		AppServices,
+		"auth" | "githubApi" | "issueApi" | "prProcessor" | "issueProcessor" | "badge" | "tabNavigation"
+	>,
 ) {
 	return (
 		message: unknown,
@@ -42,7 +45,10 @@ export function createMessageHandler(
 }
 
 async function handleMessage(
-	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge" | "tabNavigation">,
+	services: Pick<
+		AppServices,
+		"auth" | "githubApi" | "issueApi" | "prProcessor" | "issueProcessor" | "badge" | "tabNavigation"
+	>,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
 ): Promise<void> {
@@ -155,11 +161,9 @@ async function handleMessage(
 				break;
 			}
 			case "FETCH_ISSUES": {
-				// Task 6 で実装予定。型の exhaustive check を通すための placeholder
-				sendResponse({
-					ok: false,
-					error: { code: "FETCH_ISSUES_ERROR", message: "Not implemented yet" },
-				});
+				const rawJson = await services.issueApi.fetchIssues();
+				const result = await services.issueProcessor.processIssues(rawJson);
+				sendResponse({ ok: true, data: result });
 				break;
 			}
 			default: {

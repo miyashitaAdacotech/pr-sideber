@@ -1,5 +1,7 @@
 import type { AuthPort } from "../domain/ports/auth.port";
 import type { GitHubApiPort } from "../domain/ports/github-api.port";
+import type { IssueApiPort } from "../domain/ports/issue-api.port";
+import type { IssueProcessorPort } from "../domain/ports/issue-processor.port";
 import type { PrProcessorPort } from "../domain/ports/pr-processor.port";
 import type { TabNavigationPort } from "../domain/ports/tab-navigation.port";
 
@@ -10,7 +12,9 @@ export type BadgeService = {
 export type AppServices = {
 	readonly auth: AuthPort;
 	readonly githubApi: GitHubApiPort;
+	readonly issueApi: IssueApiPort;
 	readonly prProcessor: PrProcessorPort;
+	readonly issueProcessor: IssueProcessorPort;
 	readonly badge: BadgeService;
 	readonly tabNavigation: TabNavigationPort;
 	readonly dispose: () => void;

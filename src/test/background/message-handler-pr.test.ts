@@ -67,7 +67,9 @@ describe("message-handler FETCH_PRS", () => {
 		handler = createMessageHandler({
 			auth: mockAuth,
 			githubApi: mockGitHubApi,
+			issueApi: { fetchIssues: vi.fn() },
 			prProcessor: mockPrProcessor,
+			issueProcessor: { processIssues: vi.fn() },
 			badge: mockBadge,
 			tabNavigation: {
 				navigateCurrentTab: vi.fn(),
