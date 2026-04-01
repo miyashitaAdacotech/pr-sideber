@@ -22,11 +22,13 @@ pub enum TreeNodeKind {
         number: u32,
         title: String,
         url: String,
+        #[serde(rename = "prData")]
         pr_data: TreePrData,
     },
     Session {
         title: String,
         url: String,
+        #[serde(rename = "issueNumber")]
         issue_number: u32,
     },
 }
