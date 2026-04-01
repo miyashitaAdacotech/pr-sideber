@@ -177,4 +177,64 @@ mod tests {
         let restored: TreeNode = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(node, restored);
     }
+
+    #[test]
+    fn pr_node_json_has_camel_case_pr_data() {
+        let node = TreeNode::new(
+            TreeNodeKind::PullRequest {
+                number: 42,
+                title: "Test PR".to_string(),
+                url: "https://github.com/o/r/pull/42".to_string(),
+                pr_data: TreePrData {
+                    additions: 10,
+                    deletions: 5,
+                    ci_status: "Passed".to_string(),
+                    approval_status: "Approved".to_string(),
+                    mergeable_status: "Unknown".to_string(),
+                    is_draft: false,
+                    size_label: "XS".to_string(),
+                    unresolved_comment_count: 0,
+                },
+            },
+            1,
+        );
+        let json = serde_json::to_string(&node).expect("serialize");
+        // Print for debugging
+        eprintln!("PR node JSON: {json}");
+        // Verify camelCase field names
+        assert!(
+            json.contains("\"prData\""),
+            "expected prData in JSON, got: {json}"
+        );
+        assert!(
+            json.contains("\"isDraft\""),
+            "expected isDraft in JSON, got: {json}"
+        );
+        assert!(
+            json.contains("\"ciStatus\""),
+            "expected ciStatus in JSON, got: {json}"
+        );
+        assert!(
+            json.contains("\"type\":\"pullRequest\""),
+            "expected type:pullRequest in JSON, got: {json}"
+        );
+    }
+
+    #[test]
+    fn session_node_json_has_camel_case_issue_number() {
+        let node = TreeNode::new(
+            TreeNodeKind::Session {
+                title: "Inv #1882".to_string(),
+                url: "https://claude.ai/code/session_123".to_string(),
+                issue_number: 1882,
+            },
+            2,
+        );
+        let json = serde_json::to_string(&node).expect("serialize");
+        eprintln!("Session node JSON: {json}");
+        assert!(
+            json.contains("\"issueNumber\""),
+            "expected issueNumber in JSON, got: {json}"
+        );
+    }
 }

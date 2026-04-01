@@ -95,7 +95,10 @@ pub fn process_epic_tree(issues_json: &str, prs_json: &str) -> Result<JsValue, J
     let tree = usecase::epic_process::build_epic_tree(issues, all_prs);
 
     let dto = EpicTreeDto { roots: tree };
-    serde_wasm_bindgen::to_value(&dto).map_err(|e| JsError::new(&e.to_string()))
+    // serde_wasm_bindgen は internally tagged enum の #[serde(rename)] を正しく処理しない場合がある。
+    // serde_json 経由で JSON 文字列化 → JS の JSON.parse で JsValue に変換する安全パスを使用。
+    let json_str = serde_json::to_string(&dto).map_err(|e| JsError::new(&e.to_string()))?;
+    js_sys::JSON::parse(&json_str).map_err(|e| JsError::new(&format!("JSON parse failed: {e:?}")))
 }
 
 #[derive(serde::Serialize)]
