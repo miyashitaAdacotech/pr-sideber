@@ -183,6 +183,19 @@ async function handleMessage(
 				const issuesJson = await services.issueApi.fetchIssues();
 				const prsRaw = await services.githubApi.fetchPullRequests();
 				const tree = await services.epicProcessor.processEpicTree(issuesJson, prsRaw.rawJson);
+				// CLOSE された Issue のセッション履歴をクリーンアップ
+				try {
+					const parsed = JSON.parse(issuesJson) as {
+						data?: { issues?: { edges: Array<{ node?: { number?: number } }> } };
+					};
+					const openNumbers = new Set<number>();
+					for (const edge of parsed?.data?.issues?.edges ?? []) {
+						if (edge.node?.number) openNumbers.add(edge.node.number);
+					}
+					await services.claudeSessionWatcher.cleanupClosedIssues(openNumbers);
+				} catch {
+					// クリーンアップ失敗は非致命的
+				}
 				sendResponse({ ok: true, data: { tree, prsRawJson: prsRaw.rawJson } });
 				break;
 			}
