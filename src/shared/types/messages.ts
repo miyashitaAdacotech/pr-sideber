@@ -15,6 +15,7 @@ export const MESSAGE_TYPES = [
 	"UPDATE_BADGE",
 	"NAVIGATE_TO_PR",
 	"GET_CLAUDE_SESSIONS",
+	"OPEN_WORKSPACE",
 ] as const;
 
 export type MessageType = (typeof MESSAGE_TYPES)[number];
@@ -31,6 +32,12 @@ export type RequestMap = {
 	UPDATE_BADGE: { reviewRequestCount: number };
 	NAVIGATE_TO_PR: { url: string };
 	GET_CLAUDE_SESSIONS: undefined;
+	OPEN_WORKSPACE: {
+		issueNumber: number;
+		issueUrl: string;
+		prUrl: string | null;
+		sessionUrl: string | null;
+	};
 };
 
 /** メッセージタイプ → レスポンスデータのマッピング */
@@ -45,6 +52,7 @@ export type ResponseDataMap = {
 	UPDATE_BADGE: undefined;
 	NAVIGATE_TO_PR: undefined;
 	GET_CLAUDE_SESSIONS: ClaudeSessionStorage;
+	OPEN_WORKSPACE: undefined;
 };
 
 export type MessageError = {

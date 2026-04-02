@@ -5,7 +5,7 @@ export default defineManifest({
 	name: "PR Sidebar",
 	version: "0.0.1",
 	description: "GitHub PR Dashboard in Chrome Side Panel",
-	permissions: ["sidePanel", "storage", "alarms", "tabs"],
+	permissions: ["sidePanel", "storage", "alarms", "tabs", "system.display"],
 	host_permissions: ["https://github.com/*", "https://api.github.com/*", "https://claude.ai/*"],
 	content_security_policy: {
 		extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
