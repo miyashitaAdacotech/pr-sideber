@@ -210,11 +210,12 @@ async function handleMessage(
 		if (import.meta.env.DEV) {
 			console.error(`[message-handler] ${message.type} error:`, err);
 		}
+		const errorDetail = err instanceof Error ? err.message : String(err);
 		sendResponse({
 			ok: false,
 			error: {
 				code: `${message.type}_ERROR`,
-				message: ERROR_MESSAGES[message.type],
+				message: `${ERROR_MESSAGES[message.type]}: ${errorDetail}`,
 			},
 		});
 	}

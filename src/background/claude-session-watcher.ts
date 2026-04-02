@@ -29,10 +29,34 @@ export function extractIssueNumberFromTitle(title: string): number | null {
 }
 
 export class ClaudeSessionWatcher {
-	/** タブ監視を開始する */
+	/** タブ監視を開始し、既存の Claude Code Web タブをスキャンする */
 	startWatching(): void {
 		chrome.tabs.onUpdated.addListener(this.onTabUpdated.bind(this));
 		chrome.tabs.onRemoved.addListener(this.onTabRemoved.bind(this));
+		// 起動時に既に開いている Claude Code Web タブを検出
+		this.scanExistingTabs().catch(() => {
+			// スキャン失敗は非致命的（次の onUpdated で拾える）
+		});
+	}
+
+	/** 既存の Claude Code Web タブをスキャンしてセッションを保存する */
+	private async scanExistingTabs(): Promise<void> {
+		const tabs = await chrome.tabs.query({ url: "*://claude.ai/code/*" });
+		for (const tab of tabs) {
+			if (!tab.url?.includes(CLAUDE_CODE_URL_PATTERN)) continue;
+			const title = tab.title ?? "";
+			const issueNumber = extractIssueNumberFromTitle(title);
+			if (issueNumber === null) continue;
+
+			const session: ClaudeSession = {
+				sessionUrl: tab.url,
+				title,
+				issueNumber,
+				detectedAt: new Date().toISOString(),
+				isLive: true,
+			};
+			await this.saveSession(session);
+		}
 	}
 
 	private async onTabUpdated(

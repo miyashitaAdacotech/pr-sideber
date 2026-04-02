@@ -158,6 +158,6 @@ describe("message-handler FETCH_PRS", () => {
 		const response = sendResponse.mock.calls[0][0];
 		expect(response.ok).toBe(false);
 		expect(response.error.code).toBe("FETCH_PRS_ERROR");
-		expect(response.error.message).toBe("Failed to fetch pull requests");
+		expect(response.error.message).toContain("Failed to fetch pull requests");
 	});
 });
