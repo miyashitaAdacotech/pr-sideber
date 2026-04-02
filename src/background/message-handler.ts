@@ -35,6 +35,7 @@ export function createMessageHandler(
 		| "badge"
 		| "tabNavigation"
 		| "claudeSessionWatcher"
+		| "workspaceLayout"
 	>,
 ) {
 	return (
@@ -68,6 +69,7 @@ async function handleMessage(
 		| "badge"
 		| "tabNavigation"
 		| "claudeSessionWatcher"
+		| "workspaceLayout"
 	>,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
@@ -212,11 +214,9 @@ async function handleMessage(
 				break;
 			}
 			case "OPEN_WORKSPACE": {
-				// ハンドラーは Task 6 で実装。一時的なスタブ
-				sendResponse({
-					ok: false,
-					error: { code: "OPEN_WORKSPACE_ERROR", message: "Not implemented yet" },
-				});
+				const msg = message as RequestMessage<"OPEN_WORKSPACE">;
+				await services.workspaceLayout.openWorkspace(msg.payload);
+				sendResponse({ ok: true, data: undefined });
 				break;
 			}
 			default: {

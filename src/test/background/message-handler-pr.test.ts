@@ -87,6 +87,7 @@ describe("message-handler FETCH_PRS", () => {
 				cleanupClosedIssues: vi.fn().mockResolvedValue(undefined),
 				startWatching: vi.fn(),
 			} as unknown as ClaudeSessionWatcher,
+			workspaceLayout: { openWorkspace: vi.fn().mockResolvedValue(undefined) },
 		});
 	});
 

@@ -6,6 +6,7 @@ import type { IssueProcessorPort } from "../domain/ports/issue-processor.port";
 import type { PrProcessorPort } from "../domain/ports/pr-processor.port";
 import type { TabNavigationPort } from "../domain/ports/tab-navigation.port";
 import type { ClaudeSessionWatcher } from "./claude-session-watcher";
+import type { WorkspaceOpenRequest } from "./workspace-layout.usecase";
 
 export type BadgeService = {
 	readonly updateBadge: (reviewRequestCount: number) => Promise<void>;
@@ -21,5 +22,8 @@ export type AppServices = {
 	readonly badge: BadgeService;
 	readonly tabNavigation: TabNavigationPort;
 	readonly claudeSessionWatcher: ClaudeSessionWatcher;
+	readonly workspaceLayout: {
+		readonly openWorkspace: (request: WorkspaceOpenRequest) => Promise<void>;
+	};
 	readonly dispose: () => void;
 };

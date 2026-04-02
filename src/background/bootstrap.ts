@@ -4,6 +4,7 @@ import { ChromeIdentityAdapter } from "../adapter/chrome/identity.adapter";
 import { createOAuthConfig } from "../adapter/chrome/oauth.config";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
 import { TabNavigationAdapter } from "../adapter/chrome/tab-navigation.adapter";
+import { WindowManagerAdapter } from "../adapter/chrome/window-manager.adapter";
 import { GitHubGraphQLClient } from "../adapter/github/graphql-client";
 import { IssueGraphQLClient } from "../adapter/github/issue-graphql-client";
 import { GitHubApiError } from "../shared/types/errors";
@@ -15,6 +16,7 @@ import { WasmPrProcessor } from "../wasm/pr-processor";
 import { ClaudeSessionWatcher } from "./claude-session-watcher";
 import { createMessageHandler } from "./message-handler";
 import type { AppServices } from "./types";
+import { createWorkspaceLayoutUseCase } from "./workspace-layout.usecase";
 
 export type { AppServices };
 
@@ -50,6 +52,9 @@ export function initializeApp(): AppServices {
 	const claudeSessionWatcher = new ClaudeSessionWatcher();
 	claudeSessionWatcher.startWatching();
 
+	const windowManager = new WindowManagerAdapter();
+	const workspaceLayout = createWorkspaceLayoutUseCase(windowManager);
+
 	const handler = createMessageHandler({
 		auth,
 		epicProcessor,
@@ -60,6 +65,7 @@ export function initializeApp(): AppServices {
 		badge,
 		tabNavigation,
 		claudeSessionWatcher,
+		workspaceLayout,
 	});
 	chrome.runtime.onMessage.addListener(handler);
 
@@ -154,6 +160,7 @@ export function initializeApp(): AppServices {
 		badge,
 		tabNavigation,
 		claudeSessionWatcher,
+		workspaceLayout,
 		dispose,
 	};
 	return services;

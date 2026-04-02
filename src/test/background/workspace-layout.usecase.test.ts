@@ -168,8 +168,8 @@ describe("createWorkspaceLayoutUseCase", () => {
 			prUrl: null,
 			sessionUrl: "https://claude.ai/code/session-1",
 		});
-		const prCall = wm.createWindow.mock.calls.find(
-			(call: [string, ScreenBounds]) => call[1].top === 540,
+		const prCall = (wm.createWindow.mock.calls as [string, ScreenBounds][]).find(
+			(call) => call[1].top === 540,
 		);
 		expect(prCall).toBeDefined();
 		expect(prCall?.[0]).toContain("placeholder.html");
