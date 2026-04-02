@@ -1,40 +1,58 @@
 import type { EpicTreeDto, TreeNodeDto } from "../../domain/ports/epic-processor.port";
 
+type PrEdge = {
+	readonly node?: {
+		readonly number?: number;
+		readonly closingIssuesReferences?: {
+			readonly nodes: ReadonlyArray<{ readonly number: number }>;
+		};
+		readonly linkedIssues?: { readonly nodes: ReadonlyArray<{ readonly number: number }> };
+	};
+};
+
+type PrSearchResponse = {
+	readonly data?: {
+		readonly myPrs?: { readonly edges: readonly PrEdge[] };
+		readonly reviewRequested?: { readonly edges: readonly PrEdge[] };
+	};
+};
+
 /**
- * PR の closingIssuesReferences から PR番号 → Issue番号[] のマッピングを抽出する。
- * raw PR JSON をパースして取得。
+ * PR の closingIssuesReferences と linkedIssues から PR番号 → Issue番号[] のマッピングを抽出する。
+ * myPrs / reviewRequested 両エッジを走査し、同一 PR が両方にある場合はリンク先をマージする。
  */
 export function extractPrIssueLinks(prsRawJson: string): ReadonlyMap<number, readonly number[]> {
-	const map = new Map<number, number[]>();
+	const map = new Map<number, Set<number>>();
 	try {
-		const parsed = JSON.parse(prsRawJson) as {
-			data?: {
-				myPrs?: {
-					edges: Array<{
-						node?: {
-							number?: number;
-							closingIssuesReferences?: { nodes: Array<{ number: number }> };
-						};
-					}>;
-				};
-			};
-		};
-		const edges = parsed?.data?.myPrs?.edges ?? [];
-		for (const edge of edges) {
-			const node = edge.node;
-			if (!node?.number) continue;
-			const refs = node.closingIssuesReferences?.nodes ?? [];
-			if (refs.length > 0) {
-				map.set(
-					node.number,
-					refs.map((r) => r.number),
-				);
-			}
+		const parsed = JSON.parse(prsRawJson) as PrSearchResponse;
+		const myEdges = parsed?.data?.myPrs?.edges ?? [];
+		const reviewEdges = parsed?.data?.reviewRequested?.edges ?? [];
+		for (const edge of [...myEdges, ...reviewEdges]) {
+			collectIssueNumbers(edge, map);
 		}
-	} catch {
-		// パース失敗時は空マップ（PR-Issue リンクなしとして動作）
+	} catch (error: unknown) {
+		// rawJson が壊れている異常事態。PR-Issue リンクなしとして動作継続し、Epic ツリー表示への影響を局所化する
+		console.warn(
+			"[extractPrIssueLinks] JSON parse failed:",
+			error instanceof Error ? error.message : String(error),
+		);
 	}
-	return map;
+	return new Map([...map].map(([pr, issues]) => [pr, [...issues]]));
+}
+
+/** 1つの PR エッジから closingIssuesReferences + linkedIssues の Issue 番号を収集する */
+function collectIssueNumbers(edge: PrEdge, map: Map<number, Set<number>>): void {
+	const node = edge.node;
+	if (!node?.number) return;
+	const closingRefs = node.closingIssuesReferences?.nodes ?? [];
+	const linkedRefs = node.linkedIssues?.nodes ?? [];
+	const allRefs = [...closingRefs, ...linkedRefs];
+	if (allRefs.length === 0) return;
+	const existing = map.get(node.number) ?? new Set<number>();
+	for (const ref of allRefs) {
+		existing.add(ref.number);
+	}
+	map.set(node.number, existing);
 }
 
 /**

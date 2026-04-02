@@ -95,7 +95,7 @@ if [ "$HAS_GQL_MUTATION" = true ]; then
 
   # mutation 名を抽出: mutation (OperationName)? { の後の最初の識別子
   # Named mutation (例: mutation MyOp { addX(...) }) にも対応
-  MUTATION_NAME=$(printf '%s' "$COMMAND" | grep -oiP 'mutation(\s+\w+)?\s*\{\s*\K[a-zA-Z]\w*' | head -1 || true)
+  MUTATION_NAME=$(printf '%s' "$COMMAND" | grep -oiE 'mutation(\s+[a-zA-Z_]\w*)?\s*\{\s*[a-zA-Z]\w*' | head -1 | sed 's/.*[{]\s*//' || true)
 
   if [ -z "$MUTATION_NAME" ]; then
     echo "BLOCK: GraphQL mutation の名前を特定できません。許可された mutation: ${ALLOWED_MUTATIONS[*]}" >&2
