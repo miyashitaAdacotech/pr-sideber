@@ -11,7 +11,7 @@
 	type Props = {
 		authUseCase: Pick<ReturnType<typeof createAuthUseCase>, "checkAuth" | "logout">;
 		prUseCase: ReturnType<typeof createPrUseCase>;
-		fetchEpicTree: () => Promise<EpicTreeDto>;
+		fetchEpicTree: () => Promise<{ tree: EpicTreeDto; prsRawJson: string }>;
 		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
 		deviceFlowController: DeviceFlowController;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;

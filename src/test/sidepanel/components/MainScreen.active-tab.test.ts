@@ -40,8 +40,11 @@ function createPrData(): CachedPrData {
 	};
 }
 
-function createMockFetchEpicTree(): () => Promise<EpicTreeDto> {
-	return vi.fn(async () => ({ roots: [] }));
+function createMockFetchEpicTree(): () => Promise<{ tree: EpicTreeDto; prsRawJson: string }> {
+	return vi.fn(async () => ({
+		tree: { roots: [] },
+		prsRawJson: '{"data":{"myPrs":{"edges":[]}}}',
+	}));
 }
 
 /**

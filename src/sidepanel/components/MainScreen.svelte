@@ -5,6 +5,7 @@
 	import type { CachedPrData } from "../../shared/types/cache";
 	import type { ClaudeSessionStorage } from "../../shared/types/claude-session";
 	import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../shared/types/events";
+	import { extractPrIssueLinks, movePrsToLinkedIssues } from "../usecase/merge-prs-to-issues";
 	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
 	import EpicSection from "./EpicSection.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
@@ -14,7 +15,7 @@
 	type Props = {
 		onLogout: () => Promise<void>;
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
-		fetchEpicTree: () => Promise<EpicTreeDto>;
+		fetchEpicTree: () => Promise<{ tree: EpicTreeDto; prsRawJson: string }>;
 		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
@@ -46,9 +47,11 @@
 		}
 
 		try {
-			const tree = await fetchEpicTree();
+			const { tree, prsRawJson } = await fetchEpicTree();
+			const prLinks = extractPrIssueLinks(prsRawJson);
+			const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
 			const sessions = await getClaudeSessions();
-			epicData = mergeSessionsIntoTree(tree, sessions);
+			epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
 			epicError = null;
 		} catch (e: unknown) {
 			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
@@ -95,12 +98,14 @@
 				}
 			}
 
-			// Epic ツリーを取得し、Claude セッション情報をマージ
+			// Epic ツリーを取得し、PR-Issue リンク + Claude セッション情報をマージ
 			try {
-				const tree = await fetchEpicTree();
+				const { tree, prsRawJson } = await fetchEpicTree();
+				const prLinks = extractPrIssueLinks(prsRawJson);
+				const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
 				const sessions = await getClaudeSessions();
 				if (!cancelled) {
-					epicData = mergeSessionsIntoTree(tree, sessions);
+					epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {

@@ -62,6 +62,11 @@ fragment PrFields on PullRequest {
       isResolved
     }
   }
+  closingIssuesReferences(first: 10) {
+    nodes {
+      number
+    }
+  }
 }`;
 
 const PULL_REQUESTS_QUERY = `

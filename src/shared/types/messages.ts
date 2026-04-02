@@ -39,7 +39,7 @@ export type ResponseDataMap = {
 	AUTH_STATUS: { isAuthenticated: boolean };
 	AUTH_DEVICE_CODE: DeviceCodeResponse;
 	AUTH_DEVICE_POLL: PollResult;
-	FETCH_EPIC_TREE: EpicTreeDto;
+	FETCH_EPIC_TREE: { tree: EpicTreeDto; prsRawJson: string };
 	FETCH_ISSUES: IssueListDto;
 	FETCH_PRS: ProcessedPrsResult & { hasMore: boolean };
 	UPDATE_BADGE: undefined;

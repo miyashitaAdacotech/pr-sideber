@@ -182,8 +182,8 @@ async function handleMessage(
 			case "FETCH_EPIC_TREE": {
 				const issuesJson = await services.issueApi.fetchIssues();
 				const prsRaw = await services.githubApi.fetchPullRequests();
-				const result = await services.epicProcessor.processEpicTree(issuesJson, prsRaw.rawJson);
-				sendResponse({ ok: true, data: result });
+				const tree = await services.epicProcessor.processEpicTree(issuesJson, prsRaw.rawJson);
+				sendResponse({ ok: true, data: { tree, prsRawJson: prsRaw.rawJson } });
 				break;
 			}
 			case "FETCH_ISSUES": {

@@ -23,7 +23,7 @@ const prUseCase = createPrUseCase(chromeSendMessage, storage);
 const tabNavigationUseCase = createTabNavigationUseCase(chromeSendMessage);
 const tabNavigationAdapter = new TabNavigationAdapter();
 
-async function fetchEpicTree(): Promise<EpicTreeDto> {
+async function fetchEpicTree(): Promise<{ tree: EpicTreeDto; prsRawJson: string }> {
 	const response = await chromeSendMessage("FETCH_EPIC_TREE");
 	if (!response.ok) {
 		throw new Error(response.error.message);

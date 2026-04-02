@@ -27,9 +27,10 @@ function createMockSubscribeToMessages(): (callback: (message: unknown) => void)
 	return vi.fn((_callback: (message: unknown) => void) => unsubscribe);
 }
 
-function createMockFetchEpicTree(): () => Promise<EpicTreeDto> {
+function createMockFetchEpicTree(): () => Promise<{ tree: EpicTreeDto; prsRawJson: string }> {
 	return vi.fn(async () => ({
-		roots: [],
+		tree: { roots: [] },
+		prsRawJson: '{"data":{"myPrs":{"edges":[]}}}',
 	}));
 }
 
