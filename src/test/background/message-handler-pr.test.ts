@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ClaudeSessionWatcher } from "../../background/claude-session-watcher";
 import { createMessageHandler } from "../../background/message-handler";
 import type { AppServices } from "../../background/types";
 import type { AuthPort } from "../../domain/ports/auth.port";
@@ -66,8 +67,11 @@ describe("message-handler FETCH_PRS", () => {
 		mockBadge = createMockBadge();
 		handler = createMessageHandler({
 			auth: mockAuth,
+			epicProcessor: { processEpicTree: vi.fn() },
 			githubApi: mockGitHubApi,
+			issueApi: { fetchIssues: vi.fn() },
 			prProcessor: mockPrProcessor,
+			issueProcessor: { processIssues: vi.fn() },
 			badge: mockBadge,
 			tabNavigation: {
 				navigateCurrentTab: vi.fn(),
@@ -78,6 +82,11 @@ describe("message-handler FETCH_PRS", () => {
 				getTabUrl: vi.fn().mockResolvedValue(null),
 				navigateTabToUrl: vi.fn().mockResolvedValue(undefined),
 			},
+			claudeSessionWatcher: {
+				getSessions: vi.fn().mockResolvedValue({}),
+				cleanupClosedIssues: vi.fn().mockResolvedValue(undefined),
+				startWatching: vi.fn(),
+			} as unknown as ClaudeSessionWatcher,
 		});
 	});
 
@@ -149,6 +158,6 @@ describe("message-handler FETCH_PRS", () => {
 		const response = sendResponse.mock.calls[0][0];
 		expect(response.ok).toBe(false);
 		expect(response.error.code).toBe("FETCH_PRS_ERROR");
-		expect(response.error.message).toBe("Failed to fetch pull requests");
+		expect(response.error.message).toContain("Failed to fetch pull requests");
 	});
 });

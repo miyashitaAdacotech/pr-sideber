@@ -5,10 +5,14 @@ import { createOAuthConfig } from "../adapter/chrome/oauth.config";
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
 import { TabNavigationAdapter } from "../adapter/chrome/tab-navigation.adapter";
 import { GitHubGraphQLClient } from "../adapter/github/graphql-client";
+import { IssueGraphQLClient } from "../adapter/github/issue-graphql-client";
 import { GitHubApiError } from "../shared/types/errors";
 import { createAutoRefreshUseCase } from "../shared/usecase/auto-refresh.usecase";
 import { createBadgeUseCase } from "../shared/usecase/badge.usecase";
+import { WasmEpicProcessor } from "../wasm/epic-processor";
+import { WasmIssueProcessor } from "../wasm/issue-processor";
 import { WasmPrProcessor } from "../wasm/pr-processor";
+import { ClaudeSessionWatcher } from "./claude-session-watcher";
 import { createMessageHandler } from "./message-handler";
 import type { AppServices } from "./types";
 
@@ -26,20 +30,37 @@ export function initializeApp(): AppServices {
 	const config = createOAuthConfig();
 	const storage = new ChromeStorageAdapter();
 	const auth = new ChromeIdentityAdapter(storage, config);
-	const githubApi = new GitHubGraphQLClient(async () => {
+	const getAccessToken = async (): Promise<string> => {
 		const token = await auth.getToken();
 		if (!token) {
 			throw new GitHubApiError("unauthorized", "Not authenticated. Token may have expired.");
 		}
 		return token.accessToken;
-	});
+	};
+	const githubApi = new GitHubGraphQLClient(getAccessToken);
+	const issueApi = new IssueGraphQLClient(getAccessToken);
 	const prProcessor = new WasmPrProcessor();
+	const issueProcessor = new WasmIssueProcessor();
+	const epicProcessor = new WasmEpicProcessor();
 
 	const badgeAdapter = createChromeBadgeAdapter();
 	const badge = createBadgeUseCase(badgeAdapter);
 	const tabNavigation = new TabNavigationAdapter();
 
-	const handler = createMessageHandler({ auth, githubApi, prProcessor, badge, tabNavigation });
+	const claudeSessionWatcher = new ClaudeSessionWatcher();
+	claudeSessionWatcher.startWatching();
+
+	const handler = createMessageHandler({
+		auth,
+		epicProcessor,
+		githubApi,
+		issueApi,
+		prProcessor,
+		issueProcessor,
+		badge,
+		tabNavigation,
+		claudeSessionWatcher,
+	});
 	chrome.runtime.onMessage.addListener(handler);
 
 	// タブ変更リスナー: アクティブタブの URL 変更を Side Panel に通知
@@ -123,6 +144,17 @@ export function initializeApp(): AppServices {
 		}
 	};
 
-	services = { auth, githubApi, prProcessor, badge, tabNavigation, dispose };
+	services = {
+		auth,
+		epicProcessor,
+		githubApi,
+		issueApi,
+		prProcessor,
+		issueProcessor,
+		badge,
+		tabNavigation,
+		claudeSessionWatcher,
+		dispose,
+	};
 	return services;
 }

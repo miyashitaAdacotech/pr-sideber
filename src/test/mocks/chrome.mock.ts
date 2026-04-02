@@ -54,6 +54,10 @@ type ChromeMock = {
 			addListener: ReturnType<typeof vi.fn>;
 			removeListener: ReturnType<typeof vi.fn>;
 		};
+		onRemoved: {
+			addListener: ReturnType<typeof vi.fn>;
+			removeListener: ReturnType<typeof vi.fn>;
+		};
 	};
 	windows: {
 		update: ReturnType<typeof vi.fn>;
@@ -114,6 +118,10 @@ function createChromeMock(): ChromeMock {
 				removeListener: vi.fn(),
 			},
 			onUpdated: {
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+			},
+			onRemoved: {
 				addListener: vi.fn(),
 				removeListener: vi.fn(),
 			},

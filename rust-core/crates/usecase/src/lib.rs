@@ -1,4 +1,6 @@
 pub mod determine;
+pub mod epic_process;
+pub mod issue_process;
 pub mod process;
 pub mod sort;
 pub mod url;

@@ -1,6 +1,7 @@
 import type { MessageType, RequestMessage, ResponseMessage } from "../shared/types/messages";
 import { isRequestMessage } from "../shared/types/messages";
 import { extractPrBaseUrl, isPrSubPage } from "../shared/utils/github-url";
+import type { ClaudeSessionWatcher } from "./claude-session-watcher";
 import type { AppServices } from "./types";
 
 /** メッセージタイプごとの汎用エラーメッセージ */
@@ -9,9 +10,12 @@ const ERROR_MESSAGES: Record<MessageType, string> = {
 	AUTH_STATUS: "Failed to check authentication status",
 	AUTH_DEVICE_CODE: "Device code request failed",
 	AUTH_DEVICE_POLL: "Device polling failed",
+	FETCH_EPIC_TREE: "Failed to fetch epic tree",
+	FETCH_ISSUES: "Failed to fetch issues",
 	FETCH_PRS: "Failed to fetch pull requests",
 	UPDATE_BADGE: "Failed to update badge",
 	NAVIGATE_TO_PR: "Navigation failed",
+	GET_CLAUDE_SESSIONS: "Failed to get Claude sessions",
 };
 
 /** deviceCode の長さ制限 */
@@ -19,7 +23,18 @@ const DEVICE_CODE_MIN_LENGTH = 8;
 const DEVICE_CODE_MAX_LENGTH = 256;
 
 export function createMessageHandler(
-	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge" | "tabNavigation">,
+	services: Pick<
+		AppServices,
+		| "auth"
+		| "epicProcessor"
+		| "githubApi"
+		| "issueApi"
+		| "prProcessor"
+		| "issueProcessor"
+		| "badge"
+		| "tabNavigation"
+		| "claudeSessionWatcher"
+	>,
 ) {
 	return (
 		message: unknown,
@@ -41,7 +56,18 @@ export function createMessageHandler(
 }
 
 async function handleMessage(
-	services: Pick<AppServices, "auth" | "githubApi" | "prProcessor" | "badge" | "tabNavigation">,
+	services: Pick<
+		AppServices,
+		| "auth"
+		| "epicProcessor"
+		| "githubApi"
+		| "issueApi"
+		| "prProcessor"
+		| "issueProcessor"
+		| "badge"
+		| "tabNavigation"
+		| "claudeSessionWatcher"
+	>,
 	message: RequestMessage<MessageType>,
 	sendResponse: (response: ResponseMessage<MessageType>) => void,
 ): Promise<void> {
@@ -153,6 +179,37 @@ async function handleMessage(
 				sendResponse({ ok: true, data: undefined });
 				break;
 			}
+			case "FETCH_EPIC_TREE": {
+				const issuesJson = await services.issueApi.fetchIssues();
+				const prsRaw = await services.githubApi.fetchPullRequests();
+				const tree = await services.epicProcessor.processEpicTree(issuesJson, prsRaw.rawJson);
+				// CLOSE された Issue のセッション履歴をクリーンアップ
+				try {
+					const parsed = JSON.parse(issuesJson) as {
+						data?: { issues?: { edges: Array<{ node?: { number?: number } }> } };
+					};
+					const openNumbers = new Set<number>();
+					for (const edge of parsed?.data?.issues?.edges ?? []) {
+						if (edge.node?.number) openNumbers.add(edge.node.number);
+					}
+					await services.claudeSessionWatcher.cleanupClosedIssues(openNumbers);
+				} catch {
+					// クリーンアップ失敗は非致命的
+				}
+				sendResponse({ ok: true, data: { tree, prsRawJson: prsRaw.rawJson } });
+				break;
+			}
+			case "FETCH_ISSUES": {
+				const rawJson = await services.issueApi.fetchIssues();
+				const result = await services.issueProcessor.processIssues(rawJson);
+				sendResponse({ ok: true, data: result });
+				break;
+			}
+			case "GET_CLAUDE_SESSIONS": {
+				const sessions = await services.claudeSessionWatcher.getSessions();
+				sendResponse({ ok: true, data: sessions });
+				break;
+			}
 			default: {
 				const _exhaustive: never = message.type;
 				sendResponse({
@@ -166,11 +223,12 @@ async function handleMessage(
 		if (import.meta.env.DEV) {
 			console.error(`[message-handler] ${message.type} error:`, err);
 		}
+		const errorDetail = err instanceof Error ? err.message : String(err);
 		sendResponse({
 			ok: false,
 			error: {
 				code: `${message.type}_ERROR`,
-				message: ERROR_MESSAGES[message.type],
+				message: `${ERROR_MESSAGES[message.type]}: ${errorDetail}`,
 			},
 		});
 	}

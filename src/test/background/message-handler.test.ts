@@ -116,13 +116,15 @@ describe("createMessageHandler", () => {
 		});
 
 		const response = sendResponse.mock.calls[0][0] as ResponseMessage<"AUTH_LOGOUT">;
-		expect(response).toEqual({
-			ok: false,
-			error: { code: "AUTH_LOGOUT_ERROR", message: "Logout failed" },
-		});
+		expect(response.ok).toBe(false);
+		if (!response.ok) {
+			expect(response.error.code).toBe("AUTH_LOGOUT_ERROR");
+			expect(response.error.message).toContain("Logout failed");
+			expect(response.error.message).toContain("Storage error");
+		}
 	});
 
-	it("should not leak internal error details in error response", async () => {
+	it("should include error details in error response for debugging", async () => {
 		mockAuth.requestDeviceCode.mockRejectedValue(
 			new Error("GitHub API internal error at https://github.com/login/device/code"),
 		);
@@ -137,8 +139,8 @@ describe("createMessageHandler", () => {
 		const response = sendResponse.mock.calls[0][0] as ResponseMessage<"AUTH_DEVICE_CODE">;
 		expect(response.ok).toBe(false);
 		if (!response.ok) {
-			expect(response.error.message).toBe("Device code request failed");
-			expect(response.error.message).not.toContain("github.com");
+			expect(response.error.message).toContain("Device code request failed");
+			expect(response.error.message).toContain("GitHub API internal error");
 		}
 	});
 

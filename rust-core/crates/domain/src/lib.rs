@@ -1,5 +1,7 @@
 pub mod entity;
+pub mod epic;
 pub mod error;
+pub mod issue;
 pub mod status;
 
 use serde::{Deserialize, Serialize};

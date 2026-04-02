@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { untrack } from "svelte";
+	import type { EpicTreeDto } from "../domain/ports/epic-processor.port";
+	import type { ClaudeSessionStorage } from "../shared/types/claude-session";
 	import LoginScreen from "./components/LoginScreen.svelte";
 	import MainScreen from "./components/MainScreen.svelte";
 	import type { createAuthUseCase } from "../shared/usecase/auth.usecase.js";
@@ -9,12 +11,14 @@
 	type Props = {
 		authUseCase: Pick<ReturnType<typeof createAuthUseCase>, "checkAuth" | "logout">;
 		prUseCase: ReturnType<typeof createPrUseCase>;
+		fetchEpicTree: () => Promise<{ tree: EpicTreeDto; prsRawJson: string }>;
+		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
 		deviceFlowController: DeviceFlowController;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
 		onNavigate?: (url: string) => void;
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
-	const { authUseCase, prUseCase, deviceFlowController, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
+	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, deviceFlowController, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -54,7 +58,7 @@
 		<p>Loading...</p>
 	</div>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {onNavigate} {getCurrentTabUrl} />
+	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {onNavigate} {getCurrentTabUrl} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}

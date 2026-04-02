@@ -18,6 +18,7 @@ tsify-next = { workspace = true }
 wasm-bindgen = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 console_error_panic_hook = { workspace = true }
+js-sys = "0.3"
 web-sys = { version = "0.3", features = ["console"] }
 
 [package.metadata.cargo-machete]

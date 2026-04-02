@@ -1,8 +1,13 @@
 <script lang="ts">
 	import { untrack } from "svelte";
+	import type { EpicTreeDto } from "../../domain/ports/epic-processor.port";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
+	import type { ClaudeSessionStorage } from "../../shared/types/claude-session";
 	import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../shared/types/events";
+	import { extractPrIssueLinks, movePrsToLinkedIssues } from "../usecase/merge-prs-to-issues";
+	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
+	import EpicSection from "./EpicSection.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
 	import PrSection from "./PrSection.svelte";
@@ -10,6 +15,8 @@
 	type Props = {
 		onLogout: () => Promise<void>;
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
+		fetchEpicTree: () => Promise<{ tree: EpicTreeDto; prsRawJson: string }>;
+		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
@@ -17,13 +24,15 @@
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
 
-	const { onLogout, fetchPrs, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
+	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, getCurrentTabUrl }: Props = $props();
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let data = $state<(ProcessedPrsResult & { hasMore: boolean }) | null>(null);
 	let lastUpdatedAt = $state<string | undefined>(undefined);
 	let activeTabUrl = $state<string | null>(null);
+	let epicData = $state<EpicTreeDto | null>(null);
+	let epicError = $state<string | null>(null);
 
 	async function loadPrs(): Promise<void> {
 		loading = true;
@@ -35,6 +44,17 @@
 			error = e instanceof Error ? e.message : "Unknown error";
 		} finally {
 			loading = false;
+		}
+
+		try {
+			const { tree, prsRawJson } = await fetchEpicTree();
+			const prLinks = extractPrIssueLinks(prsRawJson);
+			const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
+			const sessions = await getClaudeSessions();
+			epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
+			epicError = null;
+		} catch (e: unknown) {
+			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
 		}
 	}
 
@@ -75,6 +95,21 @@
 			} finally {
 				if (!cancelled) {
 					loading = false;
+				}
+			}
+
+			// Epic ツリーを取得し、PR-Issue リンク + Claude セッション情報をマージ
+			try {
+				const { tree, prsRawJson } = await fetchEpicTree();
+				const prLinks = extractPrIssueLinks(prsRawJson);
+				const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
+				const sessions = await getClaudeSessions();
+				if (!cancelled) {
+					epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
+				}
+			} catch (e: unknown) {
+				if (!cancelled) {
+					epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
 				}
 			}
 
@@ -165,7 +200,10 @@
 				<p class="error-text">{error}</p>
 			</div>
 		{/if}
-		<PrSection title="My PRs" items={data.myPrs.items} {onNavigate} {activeTabUrl} />
+		{#if epicError}
+			<div class="error-banner"><p class="error-text">{epicError}</p></div>
+		{/if}
+		<EpicSection tree={epicData} {onNavigate} {activeTabUrl} />
 		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} {activeTabUrl} />
 	{/if}
 </main>

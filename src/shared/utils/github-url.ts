@@ -29,6 +29,34 @@ export function extractPrBaseUrl(url: string): string | null {
 }
 
 /**
+ * Issue URL からベース URL (Issue TOP ページ) を抽出する。
+ * Issue URL でない場合は null を返す。
+ *
+ * 例: "https://github.com/owner/repo/issues/42#comment-123" → "https://github.com/owner/repo/issues/42"
+ */
+export function extractIssueBaseUrl(url: string): string | null {
+	if (url.length > MAX_URL_LENGTH) return null;
+
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return null;
+	}
+
+	if (parsed.hostname !== "github.com") {
+		return null;
+	}
+
+	const match = parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+	if (!match) {
+		return null;
+	}
+
+	return `https://github.com/${match[1]}/${match[2]}/issues/${match[3]}`;
+}
+
+/**
  * URL が PR のサブページ (/files, /commits, /checks など) かどうかを判定する。
  * PR トップページ自体は false を返す。
  */
