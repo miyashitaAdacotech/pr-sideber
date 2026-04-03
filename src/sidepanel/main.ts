@@ -56,6 +56,7 @@ const app = mount(App, {
 				issueUrl: resources.issueUrl,
 				prUrl: resources.prUrl,
 				sessionUrl: resources.sessionUrl,
+				arrange: true,
 			});
 			if (!response.ok) {
 				console.error("Failed to open workspace:", response.error.message);
