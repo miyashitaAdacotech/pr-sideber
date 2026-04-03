@@ -58,8 +58,8 @@ export function initializeApp(): AppServices {
 	const workspaceOpen = createWorkspaceOpenUseCase(windowManager, {
 		getArrangeEnabled: async () => {
 			const value = await storage.get(STORAGE_KEY_WORKSPACE_LAYOUT, isBoolean);
-			// 未設定 (null) 時はデフォルト無効（同じウィンドウにタブを開く）
-			return value ?? false;
+			// 未設定 (null) 時はデフォルト有効（タブを開いた後に3分割配置する）
+			return value ?? true;
 		},
 	});
 

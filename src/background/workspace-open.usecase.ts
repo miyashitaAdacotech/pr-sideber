@@ -119,8 +119,6 @@ export function createWorkspaceOpenUseCase(
 ) {
 	return {
 		openWorkspace: async (request: WorkspaceOpenRequest): Promise<void> => {
-			const arrangeEnabled = await settings.getArrangeEnabled();
-
 			const resources = [
 				{
 					url: request.sessionUrl,
@@ -136,18 +134,21 @@ export function createWorkspaceOpenUseCase(
 				},
 			] as const;
 
-			if (arrangeEnabled) {
-				const workArea = await windowManager.getScreenWorkArea();
-				const layout = calculateThreePanelLayout(workArea);
-				const boundsMap = [layout.left, layout.topRight, layout.bottomRight] as const;
+			// Step 1: 常にタブを開く/フォーカスする（同じウィンドウ）
+			for (const resource of resources) {
+				await placeResourceSimple(resource, request.senderWindowId, windowManager);
+			}
 
-				for (let i = 0; i < resources.length; i++) {
-					await placeResourceArranged({ ...resources[i], bounds: boundsMap[i] }, windowManager);
-				}
-			} else {
-				for (const resource of resources) {
-					await placeResourceSimple(resource, request.senderWindowId, windowManager);
-				}
+			// Step 2: 設定が ON ならウィンドウを3分割配置する
+			const arrangeEnabled = await settings.getArrangeEnabled();
+			if (!arrangeEnabled) return;
+
+			const workArea = await windowManager.getScreenWorkArea();
+			const layout = calculateThreePanelLayout(workArea);
+			const boundsMap = [layout.left, layout.topRight, layout.bottomRight] as const;
+
+			for (let i = 0; i < resources.length; i++) {
+				await placeResourceArranged({ ...resources[i], bounds: boundsMap[i] }, windowManager);
 			}
 		},
 	};
