@@ -113,18 +113,36 @@ describe("WindowManagerAdapter", () => {
 	});
 
 	describe("moveWindowToBounds", () => {
-		it("should call chrome.windows.update with bounds", async () => {
+		it("should update bounds directly when window is normal", async () => {
 			const mock = getChromeMock();
+			mock.windows.get.mockResolvedValue({ state: "normal" });
 			mock.windows.update.mockResolvedValue({});
 
 			await adapter.moveWindowToBounds(1, { left: 960, top: 0, width: 960, height: 520 });
 
+			expect(mock.windows.update).toHaveBeenCalledTimes(1);
 			expect(mock.windows.update).toHaveBeenCalledWith(1, {
 				left: 960,
 				top: 0,
 				width: 960,
 				height: 520,
-				state: "normal",
+			});
+		});
+
+		it("should unmaximize first then update bounds when maximized", async () => {
+			const mock = getChromeMock();
+			mock.windows.get.mockResolvedValue({ state: "maximized" });
+			mock.windows.update.mockResolvedValue({});
+
+			await adapter.moveWindowToBounds(1, { left: 0, top: 0, width: 960, height: 1040 });
+
+			expect(mock.windows.update).toHaveBeenCalledTimes(2);
+			expect(mock.windows.update).toHaveBeenNthCalledWith(1, 1, { state: "normal" });
+			expect(mock.windows.update).toHaveBeenNthCalledWith(2, 1, {
+				left: 0,
+				top: 0,
+				width: 960,
+				height: 1040,
 			});
 		});
 	});

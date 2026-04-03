@@ -6,9 +6,13 @@ import type {
 
 export class WindowManagerAdapter implements WindowManagerPort {
 	async getScreenWorkArea(): Promise<ScreenBounds> {
-		return new Promise<ScreenBounds>((resolve) => {
+		return new Promise<ScreenBounds>((resolve, reject) => {
 			chrome.system.display.getInfo((displays) => {
 				const primary = displays[0];
+				if (!primary?.workArea) {
+					reject(new Error("No display found"));
+					return;
+				}
 				resolve({
 					left: primary.workArea.left,
 					top: primary.workArea.top,
@@ -57,12 +61,16 @@ export class WindowManagerAdapter implements WindowManagerPort {
 	}
 
 	async moveWindowToBounds(windowId: number, bounds: ScreenBounds): Promise<void> {
+		// Chrome API: state と位置・サイズは同時指定不可。2ステップで実行する
+		const win = await chrome.windows.get(windowId);
+		if (win.state === "maximized" || win.state === "fullscreen") {
+			await chrome.windows.update(windowId, { state: "normal" });
+		}
 		await chrome.windows.update(windowId, {
 			left: bounds.left,
 			top: bounds.top,
 			width: bounds.width,
 			height: bounds.height,
-			state: "normal",
 		});
 	}
 

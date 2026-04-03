@@ -219,6 +219,8 @@ async function handleMessage(
 				const msg = message as RequestMessage<"OPEN_WORKSPACE">;
 				await services.workspaceLayout.openWorkspace(msg.payload);
 				if (msg.payload.arrange === true) {
+					// タブ作成後にウィンドウが安定するまで待機
+					await new Promise((r) => setTimeout(r, 300));
 					await services.workspaceArrange.arrangeWorkspace(msg.payload);
 				}
 				sendResponse({ ok: true, data: undefined });
