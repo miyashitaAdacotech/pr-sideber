@@ -49,8 +49,11 @@ export class WindowManagerAdapter implements WindowManagerPort {
 		};
 	}
 
-	async createWindow(url: string, bounds: ScreenBounds): Promise<void> {
-		await chrome.windows.create({
+	async createWindow(
+		url: string,
+		bounds: ScreenBounds,
+	): Promise<{ windowId: number; tabId: number }> {
+		const win = await chrome.windows.create({
 			url,
 			left: bounds.left,
 			top: bounds.top,
@@ -58,6 +61,7 @@ export class WindowManagerAdapter implements WindowManagerPort {
 			height: bounds.height,
 			focused: false,
 		});
+		return { windowId: win?.id ?? 0, tabId: win?.tabs?.[0]?.id ?? 0 };
 	}
 
 	async moveWindowToBounds(windowId: number, bounds: ScreenBounds): Promise<void> {
@@ -80,6 +84,19 @@ export class WindowManagerAdapter implements WindowManagerPort {
 			height: bounds.height,
 			focused: false,
 		});
+	}
+
+	async navigateTab(tabId: number, url: string): Promise<void> {
+		await chrome.tabs.update(tabId, { url, active: true });
+	}
+
+	async windowExists(windowId: number): Promise<boolean> {
+		try {
+			await chrome.windows.get(windowId);
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	async activateTab(tabId: number): Promise<void> {

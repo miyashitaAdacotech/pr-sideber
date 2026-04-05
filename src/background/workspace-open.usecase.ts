@@ -58,85 +58,108 @@ function isWithinTolerance(current: ScreenBounds, target: ScreenBounds): boolean
 	);
 }
 
-interface CollectedTab {
+/** 前回作成したパネルの状態 */
+interface PanelState {
 	readonly tabId: number;
 	readonly windowId: number;
-	readonly windowTabCount: number;
-}
-
-/** 既存タブを探すか、なければ senderWindowId に新規作成する。タブ情報を返す */
-async function findOrCreateTab(
-	url: string,
-	queryPattern: string,
-	senderWindowId: number,
-	windowManager: WindowManagerPort,
-): Promise<CollectedTab> {
-	const existing = await windowManager.findTab(queryPattern, url);
-	if (existing !== null) {
-		await windowManager.activateTab(existing.tabId);
-		return existing;
-	}
-	const created = await windowManager.createTabInWindow(url, senderWindowId);
-	// 作成したタブは senderWindowId にいる（複数タブウィンドウ扱い）
-	return { tabId: created.tabId, windowId: senderWindowId, windowTabCount: 2 };
-}
-
-/** 収集済みタブ情報を使ってウィンドウを配置する */
-async function arrangeTab(
-	tab: CollectedTab,
-	bounds: ScreenBounds,
-	windowManager: WindowManagerPort,
-): Promise<void> {
-	if (tab.windowTabCount > 1) {
-		await windowManager.moveTabToNewWindow(tab.tabId, bounds);
-		return;
-	}
-	const currentBounds = await windowManager.getWindowBounds(tab.windowId);
-	if (isWithinTolerance(currentBounds, bounds)) return;
-	await windowManager.moveWindowToBounds(tab.windowId, bounds);
 }
 
 export function createWorkspaceOpenUseCase(
 	windowManager: WindowManagerPort,
 	settings: WorkspaceOpenSettings,
 ) {
+	// クロージャ内でパネル状態を保持（SW 再起動時はリセットされる）
+	let topRightPanel: PanelState | null = null;
+	let bottomRightPanel: PanelState | null = null;
+
+	/** 既存パネルを再利用するか、新規作成する */
+	async function openOrReusePanel(
+		url: string,
+		bounds: ScreenBounds,
+		panel: PanelState | null,
+	): Promise<PanelState> {
+		// 前回のパネルがあれば再利用を試みる
+		if (panel !== null) {
+			const exists = await windowManager.windowExists(panel.windowId);
+			if (exists) {
+				console.log("[workspace]   reuse panel:", JSON.stringify(panel));
+				await windowManager.navigateTab(panel.tabId, url);
+				const currentBounds = await windowManager.getWindowBounds(panel.windowId);
+				if (!isWithinTolerance(currentBounds, bounds)) {
+					await windowManager.moveWindowToBounds(panel.windowId, bounds);
+				}
+				return panel;
+			}
+			console.log("[workspace]   panel gone, creating new");
+		}
+
+		// 新規作成
+		console.log("[workspace]   createWindow (new)");
+		const created = await windowManager.createWindow(url, bounds);
+		return { tabId: created.tabId, windowId: created.windowId };
+	}
+
 	return {
 		openWorkspace: async (request: WorkspaceOpenRequest): Promise<void> => {
-			const resources = [
-				{ url: request.sessionUrl, queryPattern: "*://claude.ai/code/*" },
-				{ url: request.issueUrl, queryPattern: "https://github.com/*/*/issues/*" },
-				{ url: request.prUrl, queryPattern: "https://github.com/*/*/pull/*" },
-			] as const;
+			console.log("[workspace] === openWorkspace ===");
+			console.log("[workspace] senderWindowId:", request.senderWindowId);
 
-			// Step 1: タブを開く/フォーカスする（同じウィンドウ）+ タブ情報を収集
-			const tabs: (CollectedTab | null)[] = [];
-			for (const resource of resources) {
-				if (resource.url === null) {
-					tabs.push(null);
-					continue;
+			// Session タブを sender ウィンドウ内に開く
+			if (request.sessionUrl !== null) {
+				console.log("[workspace] session: opening in sender window");
+				const existing = await windowManager.findTab("*://claude.ai/code/*", request.sessionUrl);
+				if (existing !== null) {
+					console.log("[workspace] session: found existing tab:", existing.tabId);
+					await windowManager.activateTab(existing.tabId);
+				} else {
+					console.log("[workspace] session: creating new tab in sender");
+					await windowManager.createTabInWindow(request.sessionUrl, request.senderWindowId);
 				}
-				const tab = await findOrCreateTab(
-					resource.url,
-					resource.queryPattern,
-					request.senderWindowId,
-					windowManager,
-				);
-				tabs.push(tab);
 			}
 
-			// Step 2: 設定が ON なら収集したタブを3分割配置する
+			// 配置が無効なら、タブを開くだけで終了
 			const arrangeEnabled = await settings.getArrangeEnabled();
-			if (!arrangeEnabled) return;
+			console.log("[workspace] arrangeEnabled:", arrangeEnabled);
+
+			if (!arrangeEnabled) {
+				const tabUrls = [request.issueUrl, request.prUrl];
+				for (const url of tabUrls) {
+					if (url === null) continue;
+					await windowManager.createTabInWindow(url, request.senderWindowId);
+				}
+				return;
+			}
 
 			const workArea = await windowManager.getScreenWorkArea();
 			const layout = calculateThreePanelLayout(workArea);
-			const boundsMap = [layout.left, layout.topRight, layout.bottomRight] as const;
+			console.log("[workspace] workArea:", JSON.stringify(workArea));
+			console.log("[workspace] layout:", JSON.stringify(layout));
 
-			for (let i = 0; i < tabs.length; i++) {
-				const tab = tabs[i];
-				if (tab === null) continue;
-				await arrangeTab(tab, boundsMap[i], windowManager);
+			// Issue → topRight（再利用 or 新規）
+			console.log("[workspace] issue: target topRight");
+			topRightPanel = await openOrReusePanel(request.issueUrl, layout.topRight, topRightPanel);
+
+			// PR → bottomRight（再利用 or 新規）
+			if (request.prUrl !== null) {
+				console.log("[workspace] pr: target bottomRight");
+				bottomRightPanel = await openOrReusePanel(
+					request.prUrl,
+					layout.bottomRight,
+					bottomRightPanel,
+				);
 			}
+
+			// Sender ウィンドウ (PR Sidebar 付き) → left にリサイズ
+			console.log("[workspace] sender: resizing to left");
+			const senderBounds = await windowManager.getWindowBounds(request.senderWindowId);
+			if (!isWithinTolerance(senderBounds, layout.left)) {
+				await windowManager.moveWindowToBounds(request.senderWindowId, layout.left);
+				console.log("[workspace] sender: moved to left");
+			} else {
+				console.log("[workspace] sender: already in position");
+			}
+
+			console.log("[workspace] === done ===");
 		},
 	};
 }

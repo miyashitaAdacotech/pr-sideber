@@ -59,7 +59,6 @@
 		<button class="node-header" onclick={toggle}>
 			{#if isDeepNested}<span class="deep-indicator">&#8627;</span>{/if}
 			<span class="node-icon">&#128193;</span>
-			<span class="toggle-icon">{open ? "&#9660;" : "&#9654;"}</span>
 			<span class="node-title">{node.kind.title}</span>
 			<span class="node-number">#{node.kind.number}</span>
 			{#if hasChildren}
@@ -78,14 +77,13 @@
 			{#if isDeepNested}<span class="deep-indicator">&#8627;</span>{/if}
 			{#if hasChildren}
 				<button class="inline-toggle" onclick={(e) => { e.stopPropagation(); toggle(); }}>
-					<span class="toggle-icon">{open ? "&#9660;" : "&#9654;"}</span>
 				</button>
 			{/if}
 			<span class="node-icon">&#128203;</span>
-			<a class="node-title clickable" href={safeUrl(node.kind.url)} target="_blank" rel="noopener noreferrer">
+			<span class="node-number">#{node.kind.number}</span>
+			<a class="node-title clickable truncate" href={safeUrl(node.kind.url)} target="_blank" rel="noopener noreferrer">
 				{node.kind.title}
 			</a>
-			<span class="node-number">#{node.kind.number}</span>
 			{#if node.kind.state === "CLOSED"}
 				<span class="state-badge closed">Closed</span>
 			{/if}
@@ -96,13 +94,6 @@
 					onclick={handleOpenWorkspace}
 				>&#10697;</button>
 			{/if}
-			{#if node.kind.labels.length > 0}
-				<div class="labels">
-					{#each node.kind.labels as label (label.name)}
-						<span class="label-badge" style="background-color: #{label.color};">{label.name}</span>
-					{/each}
-				</div>
-			{/if}
 		</div>
 	{:else if node.kind.type === "pullRequest"}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -110,10 +101,10 @@
 		<div class="node-content" onclick={(e) => handleNavigate(e, node.kind.type === "pullRequest" ? node.kind.url : "")}>
 			{#if isDeepNested}<span class="deep-indicator">&#8627;</span>{/if}
 			<span class="node-icon">&#128256;</span>
-			<a class="node-title clickable" href={safeUrl(node.kind.type === "pullRequest" ? node.kind.url : "")} target="_blank" rel="noopener noreferrer">
+			<span class="node-number">#{node.kind.number}</span>
+			<a class="node-title clickable truncate" href={safeUrl(node.kind.type === "pullRequest" ? node.kind.url : "")} target="_blank" rel="noopener noreferrer">
 				{node.kind.title}
 			</a>
-			<span class="node-number">#{node.kind.number}</span>
 			<span class="size-text">
 				<span class="additions">+{node.kind.prData.additions}</span>
 				<span class="deletions">-{node.kind.prData.deletions}</span>
@@ -239,6 +230,13 @@
 
 	.node-title.clickable:hover {
 		text-decoration: underline;
+	}
+
+	.node-title.truncate {
+		max-width: 30ch;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.node-number {
