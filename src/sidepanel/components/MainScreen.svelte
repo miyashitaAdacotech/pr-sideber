@@ -35,6 +35,12 @@
 	let activeTabUrl = $state<string | null>(null);
 	let epicData = $state<EpicTreeDto | null>(null);
 	let epicError = $state<string | null>(null);
+	let activeWorkspaceIssueNumber = $state<number | null>(null);
+
+	function handleOpenWorkspace(resources: WorkspaceResources): void {
+		activeWorkspaceIssueNumber = resources.issueNumber;
+		onOpenWorkspace?.(resources);
+	}
 
 	async function loadPrs(): Promise<void> {
 		loading = true;
@@ -205,7 +211,7 @@
 		{#if epicError}
 			<div class="error-banner"><p class="error-text">{epicError}</p></div>
 		{/if}
-		<EpicSection tree={epicData} {onNavigate} {onOpenWorkspace} {activeTabUrl} />
+		<EpicSection tree={epicData} {onNavigate} onOpenWorkspace={handleOpenWorkspace} {activeTabUrl} {activeWorkspaceIssueNumber} />
 		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} {activeTabUrl} />
 	{/if}
 </main>

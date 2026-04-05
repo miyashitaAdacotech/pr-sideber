@@ -8,11 +8,13 @@
 	type Props = {
 		node: TreeNodeDto;
 		activeTabUrl?: string | null;
+		activeWorkspaceIssueNumber?: number | null;
+		parentIsActiveWorkspace?: boolean;
 		onNavigate?: (url: string) => void;
 		onOpenWorkspace?: (resources: WorkspaceResources) => void;
 	};
 
-	const { node, activeTabUrl, onNavigate, onOpenWorkspace }: Props = $props();
+	const { node, activeTabUrl, activeWorkspaceIssueNumber, parentIsActiveWorkspace = false, onNavigate, onOpenWorkspace }: Props = $props();
 
 	let open = $state(true);
 	let hovered = $state(false);
@@ -29,6 +31,11 @@
 
 	const isActive = $derived(
 		activeTabUrl != null && nodeUrl != null && activeTabUrl.includes(nodeUrl),
+	);
+
+	const isWorkspaceActive = $derived(
+		parentIsActiveWorkspace ||
+		(node.kind.type === "issue" && activeWorkspaceIssueNumber === node.kind.number),
 	);
 
 	function toggle(): void {
@@ -53,6 +60,7 @@
 <div
 	class="tree-node"
 	class:active={isActive}
+	class:workspace-active={isWorkspaceActive}
 	style="padding-left: calc({displayDepth} * 1.2rem)"
 >
 	{#if node.kind.type === "epic"}
@@ -141,8 +149,8 @@
 
 	{#if open && hasChildren}
 		<div class="children">
-			{#each node.children as child (child.kind.type === "epic" ? `epic-${child.kind.number}` : child.kind.type === "issue" ? `issue-${child.kind.number}` : child.kind.type === "pullRequest" ? `pr-${child.kind.number}` : `session-${child.kind.type}`)}
-				<TreeNode node={child} {activeTabUrl} {onNavigate} {onOpenWorkspace} />
+			{#each node.children as child (child.kind.type === "epic" ? `epic-${child.kind.number}` : child.kind.type === "issue" ? `issue-${child.kind.number}` : child.kind.type === "pullRequest" ? `pr-${child.kind.number}` : `session-${child.kind.url}`)}
+				<TreeNode node={child} {activeTabUrl} {activeWorkspaceIssueNumber} parentIsActiveWorkspace={isWorkspaceActive} {onNavigate} {onOpenWorkspace} />
 			{/each}
 		</div>
 	{/if}
@@ -156,6 +164,11 @@
 	.tree-node.active {
 		background: var(--color-bg-secondary);
 		border-left: 2px solid var(--color-accent-primary);
+	}
+
+	.tree-node.workspace-active {
+		background: rgba(163, 113, 247, 0.15);
+		border-left: 3px solid #a371f7;
 	}
 
 	.node-header {
