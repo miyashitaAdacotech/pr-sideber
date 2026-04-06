@@ -42,10 +42,12 @@ export class ClaudeSessionWatcher {
 	/** 既存の Claude Code Web タブをスキャンしてセッションを保存する */
 	private async scanExistingTabs(): Promise<void> {
 		const tabs = await chrome.tabs.query({ url: "*://claude.ai/code/*" });
+		console.log(`[DEBUG:watcher] scanExistingTabs: ${tabs.length} tabs found`);
 		for (const tab of tabs) {
 			if (!tab.url?.includes(CLAUDE_CODE_URL_PATTERN)) continue;
 			const title = tab.title ?? "";
 			const issueNumber = extractIssueNumberFromTitle(title);
+			console.log(`[DEBUG:watcher] tab="${title}" url=${tab.url} → issueNumber=${issueNumber}`);
 			if (issueNumber === null) continue;
 
 			const session: ClaudeSession = {
@@ -69,6 +71,7 @@ export class ClaudeSessionWatcher {
 
 		const title = tab.title ?? "";
 		const issueNumber = extractIssueNumberFromTitle(title);
+		console.log(`[DEBUG:watcher] onTabUpdated: title="${title}" → issueNumber=${issueNumber}`);
 		if (issueNumber === null) return;
 
 		const session: ClaudeSession = {
@@ -96,14 +99,20 @@ export class ClaudeSessionWatcher {
 	async cleanupClosedIssues(openIssueNumbers: ReadonlySet<number>): Promise<void> {
 		const storage = await this.getSessions();
 		const updated: Record<string, ClaudeSession[]> = {};
+		const deleted: string[] = [];
 
 		for (const [key, sessions] of Object.entries(storage)) {
 			const issueNum = Number(key);
 			if (openIssueNumbers.has(issueNum)) {
 				updated[key] = [...sessions];
+			} else {
+				deleted.push(key);
 			}
 		}
 
+		console.log(
+			`[DEBUG:watcher] cleanupClosedIssues: openNumbers=${openIssueNumbers.size}, kept=${Object.keys(updated).length}, deleted=[${deleted.join(",")}]`,
+		);
 		await chrome.storage.local.set({ [STORAGE_KEY]: updated });
 	}
 
