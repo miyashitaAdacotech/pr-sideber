@@ -187,6 +187,7 @@ async function handleMessage(
 				const prsRaw = await services.githubApi.fetchPullRequests();
 				const tree = await services.epicProcessor.processEpicTree(issuesJson, prsRaw.rawJson);
 				// CLOSE された Issue のセッション履歴をクリーンアップ
+				// セッション保持済み Issue 番号も openNumbers に含めて削除を防ぐ
 				try {
 					const parsed = JSON.parse(issuesJson) as {
 						data?: { issues?: { edges: Array<{ node?: { number?: number } }> } };
@@ -194,6 +195,10 @@ async function handleMessage(
 					const openNumbers = new Set<number>();
 					for (const edge of parsed?.data?.issues?.edges ?? []) {
 						if (edge.node?.number) openNumbers.add(edge.node.number);
+					}
+					const sessionStorage = await services.claudeSessionWatcher.getSessions();
+					for (const key of Object.keys(sessionStorage)) {
+						openNumbers.add(Number(key));
 					}
 					await services.claudeSessionWatcher.cleanupClosedIssues(openNumbers);
 				} catch {

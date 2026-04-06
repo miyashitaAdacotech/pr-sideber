@@ -164,6 +164,170 @@ describe("ClaudeSessionWatcher", () => {
 		});
 	});
 
+	describe("handleContentScriptSessions — Content Script 連携", () => {
+		it("Content Script から受信したセッション情報がストレージに保存される", async () => {
+			chromeMock.storage.local.get.mockResolvedValue({});
+
+			await watcher.handleContentScriptSessions([
+				{
+					url: "https://claude.ai/code/session_01T7hN9fW6KuKZxn52isYdyR",
+					title: "Investigate issue 2375",
+				},
+			]);
+
+			expect(chromeMock.storage.local.set).toHaveBeenCalled();
+			const setCall = chromeMock.storage.local.set.mock.calls[0][0];
+			expect(setCall.claudeSessions["2375"]).toBeDefined();
+			expect(setCall.claudeSessions["2375"][0]).toMatchObject({
+				sessionUrl: "https://claude.ai/code/session_01T7hN9fW6KuKZxn52isYdyR",
+				title: "Investigate issue 2375",
+				issueNumber: 2375,
+			});
+		});
+
+		it("Issue 番号が抽出できないセッション (タイトルに番号なし) はスキップされる", async () => {
+			chromeMock.storage.local.get.mockResolvedValue({});
+
+			await watcher.handleContentScriptSessions([
+				{
+					url: "https://claude.ai/code/session_noIssue123",
+					title: "Plan model optimization algorithm",
+				},
+			]);
+
+			expect(chromeMock.storage.local.set).not.toHaveBeenCalled();
+		});
+
+		it("複数セッションが一括で保存される", async () => {
+			chromeMock.storage.local.get.mockResolvedValue({});
+
+			await watcher.handleContentScriptSessions([
+				{
+					url: "https://claude.ai/code/session_aaa",
+					title: "Investigate issue 100",
+				},
+				{
+					url: "https://claude.ai/code/session_bbb",
+					title: "Inv #200 fix tests",
+				},
+				{
+					url: "https://claude.ai/code/session_ccc",
+					title: "[close] issue 300",
+				},
+			]);
+
+			// 3つの Issue 番号分のセッションが保存される
+			const lastSetCall =
+				chromeMock.storage.local.set.mock.calls[
+					chromeMock.storage.local.set.mock.calls.length - 1
+				][0];
+			expect(lastSetCall.claudeSessions["100"]).toBeDefined();
+			expect(lastSetCall.claudeSessions["200"]).toBeDefined();
+			expect(lastSetCall.claudeSessions["300"]).toBeDefined();
+		});
+
+		it("既存セッションとの重複は URL ベースで更新される", async () => {
+			chromeMock.storage.local.get.mockResolvedValue({
+				claudeSessions: {
+					"2375": [
+						{
+							sessionUrl: "https://claude.ai/code/session_01T7hN9fW6KuKZxn52isYdyR",
+							title: "Investigate issue 2375 (old)",
+							issueNumber: 2375,
+							detectedAt: "2026-04-01T00:00:00Z",
+							isLive: true,
+						},
+					],
+				},
+			});
+
+			await watcher.handleContentScriptSessions([
+				{
+					url: "https://claude.ai/code/session_01T7hN9fW6KuKZxn52isYdyR",
+					title: "Investigate issue 2375",
+				},
+			]);
+
+			expect(chromeMock.storage.local.set).toHaveBeenCalled();
+			const setCall = chromeMock.storage.local.set.mock.calls[0][0];
+			// 重複が追加されず、1件のままで更新されている
+			expect(setCall.claudeSessions["2375"]).toHaveLength(1);
+			expect(setCall.claudeSessions["2375"][0].title).toBe("Investigate issue 2375");
+		});
+	});
+
+	describe("startWatching — メッセージリスナー登録", () => {
+		it("chrome.runtime.onMessage.addListener が呼ばれる", () => {
+			watcher.startWatching();
+
+			expect(chromeMock.runtime.onMessage.addListener).toHaveBeenCalledTimes(1);
+			expect(chromeMock.runtime.onMessage.addListener).toHaveBeenCalledWith(expect.any(Function));
+		});
+
+		it("Content Script メッセージを受信して handleContentScriptSessions が呼ばれる", async () => {
+			watcher.startWatching();
+
+			const onMessageCallback = chromeMock.runtime.onMessage.addListener.mock.calls[0][0];
+
+			// CONTENT_CLAUDE_SESSIONS メッセージを模擬
+			onMessageCallback(
+				{
+					type: "CONTENT_CLAUDE_SESSIONS",
+					sessions: [
+						{
+							url: "https://claude.ai/code/session_abc",
+							title: "Investigate issue 999",
+						},
+					],
+				},
+				{ id: "test-extension-id" }, // sender.id === chrome.runtime.id
+			);
+
+			// handleContentScriptSessions が非同期で実行されるため待機
+			await vi.waitFor(() => {
+				expect(chromeMock.storage.local.set).toHaveBeenCalled();
+			});
+
+			const setCall = chromeMock.storage.local.set.mock.calls[0][0];
+			expect(setCall.claudeSessions["999"]).toBeDefined();
+			expect(setCall.claudeSessions["999"][0].issueNumber).toBe(999);
+		});
+
+		it("sender.id が自拡張と異なるメッセージは無視される", async () => {
+			watcher.startWatching();
+
+			const onMessageCallback = chromeMock.runtime.onMessage.addListener.mock.calls[0][0];
+
+			onMessageCallback(
+				{
+					type: "CONTENT_CLAUDE_SESSIONS",
+					sessions: [
+						{
+							url: "https://claude.ai/code/session_xyz",
+							title: "Investigate issue 777",
+						},
+					],
+				},
+				{ id: "malicious-extension-id" }, // 異なる sender.id
+			);
+
+			// 少し待って storage.local.set が呼ばれていないことを確認
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(chromeMock.storage.local.set).not.toHaveBeenCalled();
+		});
+
+		it("type が CONTENT_CLAUDE_SESSIONS 以外のメッセージは無視される", async () => {
+			watcher.startWatching();
+
+			const onMessageCallback = chromeMock.runtime.onMessage.addListener.mock.calls[0][0];
+
+			onMessageCallback({ type: "SOME_OTHER_MESSAGE", data: {} }, { id: "test-extension-id" });
+
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(chromeMock.storage.local.set).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("onTabUpdated — ダッシュボードから個別セッション遷移", () => {
 		it("URL が claude.ai/code/ でもタイトルが 'Claude Code' ならセッション未保存", async () => {
 			watcher.startWatching();

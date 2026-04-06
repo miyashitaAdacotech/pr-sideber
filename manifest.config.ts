@@ -16,6 +16,13 @@ export default defineManifest({
 	background: {
 		service_worker: "src/background/index.ts",
 	},
+	content_scripts: [
+		{
+			matches: ["https://claude.ai/code/*"],
+			js: ["src/content/claude-session-scraper.ts"],
+			run_at: "document_idle",
+		},
+	],
 	action: {
 		default_icon: {
 			"16": "icons/icon-16.png",
