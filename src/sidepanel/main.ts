@@ -11,6 +11,7 @@ import { createPrUseCase } from "../shared/usecase/pr.usecase";
 import { createTabNavigationUseCase } from "../shared/usecase/tab-navigation.usecase";
 import type { WorkspaceResources } from "../shared/utils/workspace-resources";
 import App from "./App.svelte";
+import { createPinnedTabsStore } from "./stores/pinned-tabs.svelte";
 
 const target = document.getElementById("app");
 if (!target) {
@@ -23,6 +24,7 @@ const storage = new ChromeStorageAdapter();
 const prUseCase = createPrUseCase(chromeSendMessage, storage);
 const tabNavigationUseCase = createTabNavigationUseCase(chromeSendMessage);
 const tabNavigationAdapter = new TabNavigationAdapter();
+const pinnedTabsStore = createPinnedTabsStore(storage);
 
 async function fetchEpicTree(): Promise<{ tree: EpicTreeDto; prsRawJson: string }> {
 	const response = await chromeSendMessage("FETCH_EPIC_TREE");
@@ -60,6 +62,7 @@ const app = mount(App, {
 		getClaudeSessions,
 		deviceFlowController,
 		subscribeToMessages,
+		pinnedTabsStore,
 		onNavigate: (url: string) => tabNavigationUseCase.navigateToPr(url),
 		onOpenWorkspace: async (resources: WorkspaceResources) => {
 			const currentWindow = await chrome.windows.getCurrent();

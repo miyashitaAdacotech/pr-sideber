@@ -38,6 +38,18 @@ function createMockGetClaudeSessions(): () => Promise<Record<string, never>> {
 	return vi.fn(async () => ({}));
 }
 
+function createMockPinnedTabsStore() {
+	return {
+		pinned: [] as never[],
+		activeKey: null,
+		loaded: true,
+		load: vi.fn(async () => {}),
+		pin: vi.fn(async () => {}),
+		unpin: vi.fn(async () => {}),
+		activate: vi.fn(async () => {}),
+	};
+}
+
 function createDefaultProps() {
 	return {
 		onLogout: vi.fn(async () => {}),
@@ -47,6 +59,7 @@ function createDefaultProps() {
 		getCachedPrs: createMockGetCachedPrs(),
 		loadPrsWithCache: createMockLoadPrsWithCache(),
 		subscribeToMessages: createMockSubscribeToMessages(),
+		pinnedTabsStore: createMockPinnedTabsStore(),
 		onNavigate: vi.fn(),
 	};
 }

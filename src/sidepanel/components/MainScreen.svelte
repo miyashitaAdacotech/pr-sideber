@@ -8,7 +8,10 @@
 	import { extractPrIssueLinks, movePrsToLinkedIssues } from "../usecase/merge-prs-to-issues";
 	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
 	import type { WorkspaceResources } from "../../shared/utils/workspace-resources";
+	import { filterTreeByPin } from "../usecase/filter-tree-by-pin";
+	import type { PinnedTabsStore } from "../stores/pinned-tabs.svelte";
 	import EpicSection from "./EpicSection.svelte";
+	import EpicTabBar from "./EpicTabBar.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
 	import RelativeTime from "./RelativeTime.svelte";
 	import PrSection from "./PrSection.svelte";
@@ -21,12 +24,28 @@
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
+		pinnedTabsStore: PinnedTabsStore;
 		onNavigate?: (url: string) => void;
 		onOpenWorkspace?: (resources: WorkspaceResources) => void;
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
 
-	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getCachedPrs, loadPrsWithCache, subscribeToMessages, onNavigate, onOpenWorkspace, getCurrentTabUrl }: Props = $props();
+	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getCachedPrs, loadPrsWithCache, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl }: Props = $props();
+
+	function handlePin(tab: { type: "epic" | "issue"; number: number; title: string }): void {
+		void pinnedTabsStore.pin(tab);
+	}
+
+	// activeKey から PinnedTabRef を導出してツリーをフィルタする
+	const displayedTree = $derived.by(() => {
+		if (!epicData) return null;
+		const key = pinnedTabsStore.activeKey;
+		if (!key) return epicData;
+		const match = pinnedTabsStore.pinned.find((p) => `${p.type}-${p.number}` === key);
+		if (!match) return epicData;
+		const filtered = filterTreeByPin(epicData, { type: match.type, number: match.number });
+		return filtered ?? epicData;
+	});
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -71,6 +90,15 @@
 		let cancelled = false;
 
 		untrack(async () => {
+			// Pin タブの永続状態を復元
+			try {
+				await pinnedTabsStore.load();
+			} catch (err: unknown) {
+				if (import.meta.env.DEV) {
+					console.warn("[MainScreen] pinnedTabsStore.load failed:", err);
+				}
+			}
+
 			// まずキャッシュから表示
 			try {
 				const cached = await getCachedPrs();
@@ -211,7 +239,8 @@
 		{#if epicError}
 			<div class="error-banner"><p class="error-text">{epicError}</p></div>
 		{/if}
-		<EpicSection tree={epicData} {onNavigate} onOpenWorkspace={handleOpenWorkspace} {activeTabUrl} {activeWorkspaceIssueNumber} />
+		<EpicTabBar store={pinnedTabsStore} />
+		<EpicSection tree={displayedTree} onPin={handlePin} {onNavigate} onOpenWorkspace={handleOpenWorkspace} {activeTabUrl} {activeWorkspaceIssueNumber} />
 		<PrSection title="Review Requests" items={data.reviewRequests.items} {onNavigate} {activeTabUrl} />
 	{/if}
 </main>

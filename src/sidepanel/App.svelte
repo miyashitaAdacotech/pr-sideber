@@ -8,6 +8,7 @@
 	import type { createPrUseCase } from "../shared/usecase/pr.usecase.js";
 	import type { DeviceFlowController } from "../shared/usecase/device-flow.controller.js";
 	import type { WorkspaceResources } from "../shared/utils/workspace-resources";
+	import type { PinnedTabsStore } from "./stores/pinned-tabs.svelte";
 
 	type Props = {
 		authUseCase: Pick<ReturnType<typeof createAuthUseCase>, "checkAuth" | "logout">;
@@ -16,11 +17,12 @@
 		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
 		deviceFlowController: DeviceFlowController;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
+		pinnedTabsStore: PinnedTabsStore;
 		onNavigate?: (url: string) => void;
 		onOpenWorkspace?: (resources: WorkspaceResources) => void;
 		getCurrentTabUrl?: () => Promise<string | null>;
 	};
-	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, deviceFlowController, subscribeToMessages, onNavigate, onOpenWorkspace, getCurrentTabUrl }: Props = $props();
+	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, deviceFlowController, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -60,7 +62,7 @@
 		<p>Loading...</p>
 	</div>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {onNavigate} {onOpenWorkspace} {getCurrentTabUrl} />
+	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {pinnedTabsStore} {onNavigate} {onOpenWorkspace} {getCurrentTabUrl} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}

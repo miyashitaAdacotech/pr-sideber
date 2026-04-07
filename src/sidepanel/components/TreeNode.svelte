@@ -12,9 +12,21 @@
 		parentIsActiveWorkspace?: boolean;
 		onNavigate?: (url: string) => void;
 		onOpenWorkspace?: (resources: WorkspaceResources) => void;
+		onPin?: (tab: { type: "epic" | "issue"; number: number; title: string }) => void;
 	};
 
-	const { node, activeTabUrl, activeWorkspaceIssueNumber, parentIsActiveWorkspace = false, onNavigate, onOpenWorkspace }: Props = $props();
+	const { node, activeTabUrl, activeWorkspaceIssueNumber, parentIsActiveWorkspace = false, onNavigate, onOpenWorkspace, onPin }: Props = $props();
+
+	function handlePin(event: MouseEvent): void {
+		event.stopPropagation();
+		event.preventDefault();
+		if (!onPin) return;
+		if (node.kind.type === "epic") {
+			onPin({ type: "epic", number: node.kind.number, title: node.kind.title });
+		} else if (node.kind.type === "issue") {
+			onPin({ type: "issue", number: node.kind.number, title: node.kind.title });
+		}
+	}
 
 	let open = $state(true);
 	let hovered = $state(false);
@@ -64,15 +76,25 @@
 	style="padding-left: calc({displayDepth} * 1.2rem)"
 >
 	{#if node.kind.type === "epic"}
-		<button class="node-header" onclick={toggle}>
-			{#if isDeepNested}<span class="deep-indicator">&#8627;</span>{/if}
-			<span class="node-icon">&#128193;</span>
-			<span class="node-number">#{node.kind.number}</span>
-			<span class="node-title truncate">{node.kind.title}</span>
-			{#if hasChildren}
-				<span class="child-count">{node.children.length}</span>
+		<div class="epic-row">
+			<button class="node-header" onclick={toggle}>
+				{#if isDeepNested}<span class="deep-indicator">&#8627;</span>{/if}
+				<span class="node-icon">&#128193;</span>
+				<span class="node-number">#{node.kind.number}</span>
+				<span class="node-title truncate">{node.kind.title}</span>
+				{#if hasChildren}
+					<span class="child-count">{node.children.length}</span>
+				{/if}
+			</button>
+			{#if onPin}
+				<button
+					class="pin-btn"
+					title="タブにピン留め"
+					aria-label="Pin to tab bar"
+					onclick={handlePin}
+				>&#128204;</button>
 			{/if}
-		</button>
+		</div>
 	{:else if node.kind.type === "issue"}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -101,6 +123,14 @@
 					title="ワークスペースを開く"
 					onclick={handleOpenWorkspace}
 				>&#10697;</button>
+			{/if}
+			{#if hovered && onPin}
+				<button
+					class="pin-btn"
+					title="タブにピン留め"
+					aria-label="Pin to tab bar"
+					onclick={handlePin}
+				>&#128204;</button>
 			{/if}
 		</div>
 	{:else if node.kind.type === "pullRequest"}
@@ -150,7 +180,7 @@
 	{#if open && hasChildren}
 		<div class="children">
 			{#each node.children as child (child.kind.type === "epic" ? `epic-${child.kind.number}` : child.kind.type === "issue" ? `issue-${child.kind.number}` : child.kind.type === "pullRequest" ? `pr-${child.kind.number}` : `session-${child.kind.url}`)}
-				<TreeNode node={child} {activeTabUrl} {activeWorkspaceIssueNumber} parentIsActiveWorkspace={isWorkspaceActive} {onNavigate} {onOpenWorkspace} />
+				<TreeNode node={child} {activeTabUrl} {activeWorkspaceIssueNumber} parentIsActiveWorkspace={isWorkspaceActive} {onNavigate} {onOpenWorkspace} {onPin} />
 			{/each}
 		</div>
 	{/if}
@@ -368,4 +398,32 @@
 		color: #e6edf3;
 	}
 
+	.epic-row {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.epic-row .node-header {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	.pin-btn {
+		background: none;
+		border: 1px solid transparent;
+		border-radius: 4px;
+		padding: 0.0625rem 0.25rem;
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		font-size: 0.75rem;
+		flex-shrink: 0;
+		line-height: 1;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.pin-btn:hover {
+		color: var(--color-accent-primary);
+		border-color: var(--color-accent-primary);
+	}
 </style>
