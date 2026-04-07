@@ -67,8 +67,8 @@
 		<button class="node-header" onclick={toggle}>
 			{#if isDeepNested}<span class="deep-indicator">&#8627;</span>{/if}
 			<span class="node-icon">&#128193;</span>
-			<span class="node-title">{node.kind.title}</span>
 			<span class="node-number">#{node.kind.number}</span>
+			<span class="node-title truncate">{node.kind.title}</span>
 			{#if hasChildren}
 				<span class="child-count">{node.children.length}</span>
 			{/if}
@@ -176,6 +176,7 @@
 		align-items: center;
 		gap: 0.375rem;
 		width: 100%;
+		min-width: 0;
 		padding: 0.375rem 0.5rem;
 		background: none;
 		border: none;
@@ -194,6 +195,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
+		min-width: 0;
 		padding: 0.375rem 0.5rem;
 		cursor: pointer;
 		transition: background 0.15s;
@@ -246,7 +248,7 @@
 	}
 
 	.node-title.truncate {
-		max-width: 30ch;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
