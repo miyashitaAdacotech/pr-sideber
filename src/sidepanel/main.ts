@@ -37,14 +37,15 @@ async function getClaudeSessions(): Promise<ClaudeSessionStorage> {
 	if (!response.ok) {
 		throw new Error(response.error.message);
 	}
-	// Issue #19 デバッグ: セッション取得結果をログ出力
-	const keys = Object.keys(response.data);
-	console.log(`[DEBUG:sessions] 取得件数=${keys.length}, Issue番号=${keys.join(",") || "なし"}`);
-	for (const [issueNum, sessions] of Object.entries(response.data)) {
-		for (const s of sessions) {
-			console.log(
-				`[DEBUG:sessions]   #${issueNum}: "${s.title}" (live=${s.isLive}) url=${s.sessionUrl}`,
-			);
+	if (import.meta.env.DEV) {
+		const keys = Object.keys(response.data);
+		console.log(`[DEBUG:sessions] 取得件数=${keys.length}, Issue番号=${keys.join(",") || "なし"}`);
+		for (const [issueNum, sessions] of Object.entries(response.data)) {
+			for (const s of sessions) {
+				console.log(
+					`[DEBUG:sessions]   #${issueNum}: "${s.title}" (live=${s.isLive}) url=${s.sessionUrl}`,
+				);
+			}
 		}
 	}
 	return response.data;

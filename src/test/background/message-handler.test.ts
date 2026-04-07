@@ -736,6 +736,112 @@ describe("createMessageHandler", () => {
 		});
 	});
 
+	describe("FETCH_EPIC_TREE (cleanupClosedIssues セッション保持)", () => {
+		let mockIssueApi: { fetchIssues: ReturnType<typeof vi.fn> };
+		let mockGithubApi: { fetchPullRequests: ReturnType<typeof vi.fn> };
+		let mockEpicProcessor: { processEpicTree: ReturnType<typeof vi.fn> };
+		let mockClaudeSessionWatcher: {
+			cleanupClosedIssues: ReturnType<typeof vi.fn>;
+			getSessions: ReturnType<typeof vi.fn>;
+		};
+
+		/** GraphQL レスポンスの Issue edges を生成するヘルパー */
+		function makeIssuesJson(issueNumbers: readonly number[]): string {
+			return JSON.stringify({
+				data: {
+					issues: {
+						edges: issueNumbers.map((n) => ({ node: { number: n } })),
+					},
+				},
+			});
+		}
+
+		beforeEach(() => {
+			mockIssueApi = { fetchIssues: vi.fn() };
+			mockGithubApi = {
+				fetchPullRequests: vi.fn().mockResolvedValue({ rawJson: "{}", hasMore: false }),
+			};
+			mockEpicProcessor = {
+				processEpicTree: vi.fn().mockResolvedValue("mock-tree"),
+			};
+			mockClaudeSessionWatcher = {
+				cleanupClosedIssues: vi.fn().mockResolvedValue(undefined),
+				getSessions: vi.fn().mockResolvedValue({}),
+			};
+			services = {
+				auth: mockAuth,
+				issueApi: mockIssueApi,
+				githubApi: mockGithubApi,
+				epicProcessor: mockEpicProcessor,
+				claudeSessionWatcher: mockClaudeSessionWatcher,
+			} as unknown as AppServices;
+			handler = createMessageHandler(services);
+		});
+
+		it("cleanupClosedIssues にセッション保持済み Issue 番号が含まれた openNumbers が渡される", async () => {
+			// GraphQL 結果には Issue 10, 20 のみ含まれる
+			mockIssueApi.fetchIssues.mockResolvedValue(makeIssuesJson([10, 20]));
+			// ストレージにはセッションが Issue 2375 に紐付いている
+			mockClaudeSessionWatcher.getSessions.mockResolvedValue({
+				"2375": [
+					{
+						sessionUrl: "https://claude.ai/code/session_abc",
+						title: "Investigate issue 2375",
+						issueNumber: 2375,
+						detectedAt: "2026-04-06T00:00:00Z",
+						isLive: false,
+					},
+				],
+			});
+
+			const sendResponse = vi.fn();
+			handler({ type: "FETCH_EPIC_TREE" }, createTrustedSender(), sendResponse);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockClaudeSessionWatcher.cleanupClosedIssues).toHaveBeenCalled();
+			const openNumbers: Set<number> =
+				mockClaudeSessionWatcher.cleanupClosedIssues.mock.calls[0][0];
+			// GraphQL の 10, 20 に加えて、セッション保持中の 2375 も含まれている
+			expect(openNumbers.has(10)).toBe(true);
+			expect(openNumbers.has(20)).toBe(true);
+			expect(openNumbers.has(2375)).toBe(true);
+		});
+
+		it("セッション保持済みの Issue が GraphQL 結果に含まれなくても削除されない", async () => {
+			// GraphQL 結果には Issue 10 のみ
+			mockIssueApi.fetchIssues.mockResolvedValue(makeIssuesJson([10]));
+			// ストレージには Issue 500 のセッションがある
+			mockClaudeSessionWatcher.getSessions.mockResolvedValue({
+				"500": [
+					{
+						sessionUrl: "https://claude.ai/code/session_xyz",
+						title: "Inv #500 debug",
+						issueNumber: 500,
+						detectedAt: "2026-04-06T00:00:00Z",
+						isLive: true,
+					},
+				],
+			});
+
+			const sendResponse = vi.fn();
+			handler({ type: "FETCH_EPIC_TREE" }, createTrustedSender(), sendResponse);
+
+			await vi.waitFor(() => {
+				expect(sendResponse).toHaveBeenCalled();
+			});
+
+			expect(mockClaudeSessionWatcher.cleanupClosedIssues).toHaveBeenCalled();
+			const openNumbers: Set<number> =
+				mockClaudeSessionWatcher.cleanupClosedIssues.mock.calls[0][0];
+			// セッション保持中の Issue 500 が openNumbers に含まれるため削除されない
+			expect(openNumbers.has(500)).toBe(true);
+			expect(openNumbers.has(10)).toBe(true);
+		});
+	});
+
 	describe("OPEN_WORKSPACE", () => {
 		let mockWorkspaceOpen: { openWorkspace: ReturnType<typeof vi.fn> };
 

@@ -48,8 +48,10 @@ describe("bootstrap", () => {
 			it("should register onMessage listener only once even if called twice", async () => {
 				const initializeApp = await loadInitializeApp();
 				initializeApp();
+				const countAfterFirst = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls.length;
 				initializeApp();
-				expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(1);
+				// 2回目の initializeApp では addListener が追加で呼ばれない
+				expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(countAfterFirst);
 			});
 
 			it("should create ChromeIdentityAdapter only once (verified via storage.onChanged.addListener count)", async () => {
@@ -62,10 +64,12 @@ describe("bootstrap", () => {
 			it("should remain idempotent across multiple calls", async () => {
 				const initializeApp = await loadInitializeApp();
 				const first = initializeApp();
+				const countAfterFirst = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls.length;
 				initializeApp();
 				const third = initializeApp();
 				expect(third).toBe(first);
-				expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(1);
+				// 2回目以降の initializeApp では addListener が追加で呼ばれない
+				expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(countAfterFirst);
 				expect(chrome.storage.onChanged.addListener).toHaveBeenCalledTimes(1);
 			});
 		});
@@ -82,10 +86,13 @@ describe("bootstrap", () => {
 		it("should call chrome.runtime.onMessage.removeListener with the registered handler on dispose", async () => {
 			const initializeApp = await loadInitializeApp();
 			const services = initializeApp();
-			const registeredHandler = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0];
-			expect(registeredHandler).toBeDefined();
+			// startWatching() が calls[0] にリスナーを登録し、
+			// createMessageHandler の handler が calls[1] に登録される
+			const calls = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls;
+			const messageHandler = calls[calls.length - 1]?.[0];
+			expect(messageHandler).toBeDefined();
 			services.dispose();
-			expect(chrome.runtime.onMessage.removeListener).toHaveBeenCalledWith(registeredHandler);
+			expect(chrome.runtime.onMessage.removeListener).toHaveBeenCalledWith(messageHandler);
 		});
 
 		it("should not throw when dispose is called twice (idempotent)", async () => {

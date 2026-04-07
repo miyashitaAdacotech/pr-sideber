@@ -28,11 +28,38 @@ export function extractIssueNumberFromTitle(title: string): number | null {
 	return null;
 }
 
+/** Content Script から送信されるセッション情報メッセージの型ガード */
+function isContentSessionsMessage(msg: unknown): msg is {
+	type: "CONTENT_CLAUDE_SESSIONS";
+	sessions: ReadonlyArray<{ url: string; title: string }>;
+} {
+	if (typeof msg !== "object" || msg === null) return false;
+	if (!("type" in msg) || (msg as { type: unknown }).type !== "CONTENT_CLAUDE_SESSIONS")
+		return false;
+	if (!("sessions" in msg) || !Array.isArray((msg as { sessions: unknown }).sessions)) return false;
+	return true;
+}
+
 export class ClaudeSessionWatcher {
 	/** タブ監視を開始し、既存の Claude Code Web タブをスキャンする */
 	startWatching(): void {
 		chrome.tabs.onUpdated.addListener(this.onTabUpdated.bind(this));
 		chrome.tabs.onRemoved.addListener(this.onTabRemoved.bind(this));
+
+		// Content Script からのセッション情報を受信
+		chrome.runtime.onMessage.addListener(
+			(message: unknown, sender: chrome.runtime.MessageSender) => {
+				// 自拡張からのメッセージのみ受け付ける
+				if (sender.id !== chrome.runtime.id) return;
+				// Content Script は claude.ai/code/ 上でのみ動作するため、sender.url で起源を検証する
+				if (!sender.url?.startsWith("https://claude.ai/code/")) return;
+				if (!isContentSessionsMessage(message)) return;
+				this.handleContentScriptSessions(message.sessions).catch((err: unknown) => {
+					console.error("[DEBUG:watcher] handleContentScriptSessions failed:", err);
+				});
+			},
+		);
+
 		// 起動時に既に開いている Claude Code Web タブを検出
 		this.scanExistingTabs().catch(() => {
 			// スキャン失敗は非致命的（次の onUpdated で拾える）
@@ -42,12 +69,16 @@ export class ClaudeSessionWatcher {
 	/** 既存の Claude Code Web タブをスキャンしてセッションを保存する */
 	private async scanExistingTabs(): Promise<void> {
 		const tabs = await chrome.tabs.query({ url: "*://claude.ai/code/*" });
-		console.log(`[DEBUG:watcher] scanExistingTabs: ${tabs.length} tabs found`);
+		if (import.meta.env.DEV) {
+			console.log(`[DEBUG:watcher] scanExistingTabs: ${tabs.length} tabs found`);
+		}
 		for (const tab of tabs) {
 			if (!tab.url?.includes(CLAUDE_CODE_URL_PATTERN)) continue;
 			const title = tab.title ?? "";
 			const issueNumber = extractIssueNumberFromTitle(title);
-			console.log(`[DEBUG:watcher] tab="${title}" url=${tab.url} → issueNumber=${issueNumber}`);
+			if (import.meta.env.DEV) {
+				console.log(`[DEBUG:watcher] tab="${title}" url=${tab.url} → issueNumber=${issueNumber}`);
+			}
 			if (issueNumber === null) continue;
 
 			const session: ClaudeSession = {
@@ -71,7 +102,9 @@ export class ClaudeSessionWatcher {
 
 		const title = tab.title ?? "";
 		const issueNumber = extractIssueNumberFromTitle(title);
-		console.log(`[DEBUG:watcher] onTabUpdated: title="${title}" → issueNumber=${issueNumber}`);
+		if (import.meta.env.DEV) {
+			console.log(`[DEBUG:watcher] onTabUpdated: title="${title}" → issueNumber=${issueNumber}`);
+		}
 		if (issueNumber === null) return;
 
 		const session: ClaudeSession = {
@@ -110,10 +143,50 @@ export class ClaudeSessionWatcher {
 			}
 		}
 
-		console.log(
-			`[DEBUG:watcher] cleanupClosedIssues: openNumbers=${openIssueNumbers.size}, kept=${Object.keys(updated).length}, deleted=[${deleted.join(",")}]`,
-		);
+		if (import.meta.env.DEV) {
+			console.log(
+				`[DEBUG:watcher] cleanupClosedIssues: openNumbers=${openIssueNumbers.size}, kept=${Object.keys(updated).length}, deleted=[${deleted.join(",")}]`,
+			);
+		}
 		await chrome.storage.local.set({ [STORAGE_KEY]: updated });
+	}
+
+	/**
+	 * Content Script から受信したセッション情報を処理し、ストレージに保存する。
+	 * Issue 番号が抽出できないセッションはスキップされる。
+	 * 複数セッションを一括読み込み→マージ→一括書き込みで処理する。
+	 */
+	async handleContentScriptSessions(
+		sessions: ReadonlyArray<{ readonly url: string; readonly title: string }>,
+	): Promise<void> {
+		const validSessions: ClaudeSession[] = [];
+		for (const { url, title } of sessions) {
+			const issueNumber = extractIssueNumberFromTitle(title);
+			if (issueNumber === null) continue;
+			validSessions.push({
+				sessionUrl: url,
+				title,
+				issueNumber,
+				detectedAt: new Date().toISOString(),
+				isLive: false,
+			});
+		}
+
+		if (validSessions.length === 0) return;
+
+		const storage = await this.getSessions();
+		let merged: Record<string, readonly ClaudeSession[]> = { ...storage };
+
+		for (const session of validSessions) {
+			const key = String(session.issueNumber);
+			const existing = merged[key] ?? [];
+			const idx = existing.findIndex((s) => s.sessionUrl === session.sessionUrl);
+			const updatedSessions =
+				idx >= 0 ? existing.map((s, i) => (i === idx ? session : s)) : [...existing, session];
+			merged = { ...merged, [key]: updatedSessions };
+		}
+
+		await chrome.storage.local.set({ [STORAGE_KEY]: merged });
 	}
 
 	private async saveSession(session: ClaudeSession): Promise<void> {

@@ -266,6 +266,76 @@ describe("mergeSessionsIntoTree", () => {
 		expect(result.roots[0].children[0].children).toHaveLength(0);
 	});
 
+	it("同一タイトルのセッションは最新のもののみ表示される", () => {
+		const tree: EpicTreeDto = {
+			roots: [makeEpicNode(1, [makeIssueNode(10)])],
+		};
+		const sessions: ClaudeSessionStorage = {
+			"10": [
+				{
+					sessionUrl: "https://claude.ai/code/session_old",
+					title: "Investigate issue 10",
+					issueNumber: 10,
+					detectedAt: "2026-04-01T00:00:00Z",
+					isLive: false,
+				},
+				{
+					sessionUrl: "https://claude.ai/code/session_mid",
+					title: "Investigate issue 10",
+					issueNumber: 10,
+					detectedAt: "2026-04-03T00:00:00Z",
+					isLive: false,
+				},
+				{
+					sessionUrl: "https://claude.ai/code/session_new",
+					title: "Investigate issue 10",
+					issueNumber: 10,
+					detectedAt: "2026-04-05T00:00:00Z",
+					isLive: true,
+				},
+			],
+		};
+
+		const result = mergeSessionsIntoTree(tree, sessions);
+
+		const issueNode = result.roots[0].children[0];
+		// 3つのセッションが同一タイトルなので最新の1つだけ表示
+		expect(issueNode.children).toHaveLength(1);
+		if (issueNode.children[0].kind.type === "session") {
+			expect(issueNode.children[0].kind.url).toBe("https://claude.ai/code/session_new");
+		}
+	});
+
+	it("異なるタイトルのセッションはそれぞれ表示される", () => {
+		const tree: EpicTreeDto = {
+			roots: [makeEpicNode(1, [makeIssueNode(10)])],
+		};
+		const sessions: ClaudeSessionStorage = {
+			"10": [
+				{
+					sessionUrl: "https://claude.ai/code/session_a",
+					title: "Investigate issue 10",
+					issueNumber: 10,
+					detectedAt: "2026-04-01T00:00:00Z",
+					isLive: false,
+				},
+				{
+					sessionUrl: "https://claude.ai/code/session_b",
+					title: "[close] issue 10 hotfix",
+					issueNumber: 10,
+					detectedAt: "2026-04-03T00:00:00Z",
+					isLive: true,
+				},
+			],
+		};
+
+		const result = mergeSessionsIntoTree(tree, sessions);
+
+		const issueNode = result.roots[0].children[0];
+		// タイトルが異なるので両方表示
+		expect(issueNode.children).toHaveLength(2);
+	});
+
 	it("returns tree with empty roots unchanged", () => {
 		const tree: EpicTreeDto = { roots: [] };
 		const sessions: ClaudeSessionStorage = {
