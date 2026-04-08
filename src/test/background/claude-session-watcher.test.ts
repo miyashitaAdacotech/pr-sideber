@@ -57,6 +57,8 @@ describe("ClaudeSessionWatcher", () => {
 		chromeMock.storage.local.get.mockResolvedValue({});
 		chromeMock.storage.local.set.mockResolvedValue(undefined);
 		chromeMock.tabs.query.mockResolvedValue([]);
+		// notifySidePanel から呼ばれる runtime.sendMessage のデフォルトモック (resolve)
+		chromeMock.runtime.sendMessage.mockResolvedValue(undefined);
 		watcher = new ClaudeSessionWatcher();
 	});
 
@@ -413,6 +415,60 @@ describe("ClaudeSessionWatcher", () => {
 
 			const setCall = chromeMock.storage.local.set.mock.calls[0][0];
 			expect(setCall.claudeSessions["2375"]).toBeDefined();
+		});
+	});
+
+	// Issue #27: ストレージ更新後に Side Panel へ broadcast しないと、後から検知された
+	// セッションが UI に反映されない (Side Panel は購読しても通知が来ないため再取得しない)
+	describe("Issue #27 — Side Panel への broadcast", () => {
+		it("onTabUpdated でセッション保存後に CLAUDE_SESSIONS_UPDATED が broadcast される", async () => {
+			watcher.startWatching();
+			const onUpdatedCallback = chromeMock.tabs.onUpdated.addListener.mock.calls[0][0];
+
+			await onUpdatedCallback(
+				1,
+				{ title: "Investigate issue 27 | Claude Code" },
+				{
+					url: "https://claude.ai/code/session_issue27",
+					title: "Investigate issue 27 | Claude Code",
+				},
+			);
+
+			await vi.waitFor(() => {
+				expect(chromeMock.runtime.sendMessage).toHaveBeenCalledWith({
+					type: "CLAUDE_SESSIONS_UPDATED",
+				});
+			});
+		});
+
+		it("handleContentScriptSessions の保存後に CLAUDE_SESSIONS_UPDATED が broadcast される", async () => {
+			await watcher.handleContentScriptSessions([
+				{ url: "https://claude.ai/code/session_x", title: "Investigate issue 27" },
+			]);
+
+			expect(chromeMock.runtime.sendMessage).toHaveBeenCalledWith({
+				type: "CLAUDE_SESSIONS_UPDATED",
+			});
+		});
+
+		it("Issue 番号抽出に失敗 (保存スキップ) した場合は broadcast されない", async () => {
+			await watcher.handleContentScriptSessions([
+				{ url: "https://claude.ai/code/session_y", title: "no issue number here" },
+			]);
+
+			expect(chromeMock.runtime.sendMessage).not.toHaveBeenCalled();
+		});
+
+		it("Side Panel 未起動で sendMessage が reject しても例外が伝播しない", async () => {
+			chromeMock.runtime.sendMessage.mockRejectedValue(
+				new Error("Could not establish connection. Receiving end does not exist."),
+			);
+
+			await expect(
+				watcher.handleContentScriptSessions([
+					{ url: "https://claude.ai/code/session_z", title: "Investigate issue 27" },
+				]),
+			).resolves.not.toThrow();
 		});
 	});
 });
