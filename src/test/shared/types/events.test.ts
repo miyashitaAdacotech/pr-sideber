@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../../shared/types/events";
+import {
+	isCacheUpdatedEvent,
+	isClaudeSessionsUpdatedEvent,
+	isTabUrlChangedEvent,
+} from "../../../shared/types/events";
 
 describe("isCacheUpdatedEvent", () => {
 	it("should return true for a valid CacheUpdatedEvent", () => {
@@ -113,5 +117,26 @@ describe("isTabUrlChangedEvent", () => {
 	it("should return false when url is an empty string", () => {
 		const event = { type: "TAB_URL_CHANGED", url: "" };
 		expect(isTabUrlChangedEvent(event)).toBe(false);
+	});
+});
+
+describe("isClaudeSessionsUpdatedEvent", () => {
+	it("should return true for a valid CLAUDE_SESSIONS_UPDATED event", () => {
+		expect(isClaudeSessionsUpdatedEvent({ type: "CLAUDE_SESSIONS_UPDATED" })).toBe(true);
+	});
+
+	it("should return false when type is different", () => {
+		expect(isClaudeSessionsUpdatedEvent({ type: "CACHE_UPDATED" })).toBe(false);
+	});
+
+	it("should return false for null/undefined/non-object", () => {
+		expect(isClaudeSessionsUpdatedEvent(null)).toBe(false);
+		expect(isClaudeSessionsUpdatedEvent(undefined)).toBe(false);
+		expect(isClaudeSessionsUpdatedEvent("string")).toBe(false);
+		expect(isClaudeSessionsUpdatedEvent(42)).toBe(false);
+	});
+
+	it("should return true even with extra properties", () => {
+		expect(isClaudeSessionsUpdatedEvent({ type: "CLAUDE_SESSIONS_UPDATED", extra: 1 })).toBe(true);
 	});
 });

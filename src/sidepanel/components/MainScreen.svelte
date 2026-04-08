@@ -4,7 +4,11 @@
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
 	import type { ClaudeSessionStorage } from "../../shared/types/claude-session";
-	import { isCacheUpdatedEvent, isTabUrlChangedEvent } from "../../shared/types/events";
+	import {
+		isCacheUpdatedEvent,
+		isClaudeSessionsUpdatedEvent,
+		isTabUrlChangedEvent,
+	} from "../../shared/types/events";
 	import { extractPrIssueLinks, movePrsToLinkedIssues } from "../usecase/merge-prs-to-issues";
 	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
 	import type { WorkspaceResources } from "../../shared/utils/workspace-resources";
@@ -186,6 +190,19 @@
 			}
 			if (isTabUrlChangedEvent(message)) {
 				activeTabUrl = message.url;
+			}
+			if (isClaudeSessionsUpdatedEvent(message)) {
+				getClaudeSessions()
+					.then((sessions) => {
+						if (epicData) {
+							epicData = mergeSessionsIntoTree(epicData, sessions);
+						}
+					})
+					.catch((err: unknown) => {
+						if (import.meta.env.DEV) {
+							console.warn("[MainScreen] claude sessions reload failed:", err);
+						}
+					});
 			}
 		}
 

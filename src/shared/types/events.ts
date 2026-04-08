@@ -33,3 +33,19 @@ export function isTabUrlChangedEvent(value: unknown): value is TabUrlChangedEven
 	}
 	return obj.url.length > 0;
 }
+
+/**
+ * Background → Side Panel: Claude Code Web セッションの保存内容が更新されたことを通知する。
+ * Side Panel はこれを受信したら getClaudeSessions() を再実行して UI を更新する。
+ */
+export type ClaudeSessionsUpdatedEvent = {
+	readonly type: "CLAUDE_SESSIONS_UPDATED";
+};
+
+export function isClaudeSessionsUpdatedEvent(value: unknown): value is ClaudeSessionsUpdatedEvent {
+	if (value === null || value === undefined || typeof value !== "object") {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return obj.type === "CLAUDE_SESSIONS_UPDATED";
+}

@@ -149,6 +149,18 @@ export class ClaudeSessionWatcher {
 			);
 		}
 		await chrome.storage.local.set({ [STORAGE_KEY]: updated });
+		this.notifySidePanel();
+	}
+
+	/**
+	 * Side Panel に Claude セッション更新を通知する。
+	 * Side Panel が閉じている場合 sendMessage は "Receiving end does not exist" で reject するが、
+	 * これは正常系 (購読者不在) なので意図的に握り潰す。
+	 */
+	private notifySidePanel(): void {
+		chrome.runtime.sendMessage({ type: "CLAUDE_SESSIONS_UPDATED" }).catch(() => {
+			// Side Panel 未起動時の "Receiving end does not exist" は無視する
+		});
 	}
 
 	/**
@@ -187,6 +199,7 @@ export class ClaudeSessionWatcher {
 		}
 
 		await chrome.storage.local.set({ [STORAGE_KEY]: merged });
+		this.notifySidePanel();
 	}
 
 	private async saveSession(session: ClaudeSession): Promise<void> {
@@ -202,6 +215,12 @@ export class ClaudeSessionWatcher {
 		await chrome.storage.local.set({
 			[STORAGE_KEY]: { ...storage, [key]: updatedSessions },
 		});
+		if (import.meta.env.DEV) {
+			console.log(
+				`[DEBUG:watcher] saveSession key=${key} issueNumber=${session.issueNumber} url=${session.sessionUrl}`,
+			);
+		}
+		this.notifySidePanel();
 	}
 
 	private async refreshLiveStatus(): Promise<void> {
@@ -219,5 +238,6 @@ export class ClaudeSessionWatcher {
 		}
 
 		await chrome.storage.local.set({ [STORAGE_KEY]: updated });
+		this.notifySidePanel();
 	}
 }
