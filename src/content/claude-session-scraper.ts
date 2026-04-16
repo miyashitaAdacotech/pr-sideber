@@ -8,13 +8,12 @@
  */
 
 import { logDebug } from "../shared/utils/debug-logger";
+import { SESSION_ID_PATTERN } from "../shared/utils/session-id";
 
 const SESSION_CONTAINER_SELECTOR = "div.cursor-pointer";
 const FIBER_KEY_PREFIX = "__reactFiber$";
 const MAX_FIBER_DEPTH = 10;
 const CLAUDE_CODE_BASE_URL = "https://claude.ai/code/";
-/** session.id は session_ + 英数字/ハイフン/アンダースコアのみ許可 (path traversal / query 混入防止) */
-const SESSION_ID_PATTERN = /^session_[a-zA-Z0-9_-]{1,128}$/;
 
 interface SessionLink {
 	readonly url: string;
