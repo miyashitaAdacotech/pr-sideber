@@ -14,3 +14,21 @@ export const SESSION_ID_PATTERN: RegExp = /^session_[a-zA-Z0-9_-]{1,128}$/;
 export function isValidSessionId(value: unknown): value is string {
 	return typeof value === "string" && SESSION_ID_PATTERN.test(value);
 }
+
+/**
+ * claude.ai/code のセッション URL から sessionId を抽出する。
+ * URL 末尾セグメントが `session_...` パターンに合致しない場合は null を返す。
+ * クエリ・フラグメントは許容して落とす (SESSION_ID_PATTERN 自体は弾くため)。
+ */
+export function extractSessionIdFromUrl(url: string): string | null {
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return null;
+	}
+	const segments = parsed.pathname.split("/").filter((s) => s.length > 0);
+	const last = segments[segments.length - 1];
+	if (last === undefined) return null;
+	return isValidSessionId(last) ? last : null;
+}

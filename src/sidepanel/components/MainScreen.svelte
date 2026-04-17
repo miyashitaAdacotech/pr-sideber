@@ -11,6 +11,7 @@
 	} from "../../shared/types/events";
 	import { extractPrIssueLinks, movePrsToLinkedIssues } from "../usecase/merge-prs-to-issues";
 	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
+	import { getAllMappings } from "../../shared/utils/session-mapping-store";
 	import type { WorkspaceResources } from "../../shared/utils/workspace-resources";
 	import { filterTreeByPin } from "../usecase/filter-tree-by-pin";
 	import { findNodeInTree, nodeKeyFor } from "../usecase/find-node-in-tree";
@@ -153,8 +154,8 @@
 			const { tree, prsRawJson } = await fetchEpicTree();
 			const prLinks = extractPrIssueLinks(prsRawJson);
 			const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
-			const sessions = await getClaudeSessions();
-			epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
+			const [sessions, mapping] = await Promise.all([getClaudeSessions(), getAllMappings()]);
+			epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
 			epicError = null;
 		} catch (e: unknown) {
 			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
@@ -215,9 +216,9 @@
 				const { tree, prsRawJson } = await fetchEpicTree();
 				const prLinks = extractPrIssueLinks(prsRawJson);
 				const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
-				const sessions = await getClaudeSessions();
+				const [sessions, mapping] = await Promise.all([getClaudeSessions(), getAllMappings()]);
 				if (!cancelled) {
-					epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
+					epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
@@ -264,10 +265,10 @@
 				activeTabUrl = message.url;
 			}
 			if (isClaudeSessionsUpdatedEvent(message)) {
-				getClaudeSessions()
-					.then((sessions) => {
+				Promise.all([getClaudeSessions(), getAllMappings()])
+					.then(([sessions, mapping]) => {
 						if (epicData) {
-							epicData = mergeSessionsIntoTree(epicData, sessions);
+							epicData = mergeSessionsIntoTree(epicData, sessions, mapping);
 						}
 					})
 					.catch((err: unknown) => {

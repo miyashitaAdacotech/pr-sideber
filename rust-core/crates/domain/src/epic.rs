@@ -30,6 +30,10 @@ pub enum TreeNodeKind {
         url: String,
         #[serde(rename = "issueNumber")]
         issue_number: u32,
+        /// `true` のとき、ユーザーが手動で `SessionIssueMapping` 経由で配置した
+        /// セッションであることを示す (Epic #43)。TS 側の TreeNodeDto とスキーマを一致させる。
+        #[serde(rename = "isManuallyMapped")]
+        is_manually_mapped: bool,
     },
 }
 
@@ -227,6 +231,7 @@ mod tests {
                 title: "Inv #1882".to_string(),
                 url: "https://claude.ai/code/session_123".to_string(),
                 issue_number: 1882,
+                is_manually_mapped: false,
             },
             2,
         );

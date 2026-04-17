@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { SESSION_ID_PATTERN, isValidSessionId } from "../../../shared/utils/session-id";
+import {
+	SESSION_ID_PATTERN,
+	extractSessionIdFromUrl,
+	isValidSessionId,
+} from "../../../shared/utils/session-id";
 
 describe("SESSION_ID_PATTERN", () => {
 	it("session_ + 英数字のみのIDにマッチする", () => {
@@ -75,5 +79,47 @@ describe("isValidSessionId", () => {
 	it("129 文字以上の suffix に対して false を返す", () => {
 		const suffix129 = "a".repeat(129);
 		expect(isValidSessionId(`session_${suffix129}`)).toBe(false);
+	});
+});
+
+describe("extractSessionIdFromUrl", () => {
+	it("claude.ai/code のセッション URL から sessionId を抽出する", () => {
+		expect(extractSessionIdFromUrl("https://claude.ai/code/session_01T7hN9fW6KuKZxn52isYdyR")).toBe(
+			"session_01T7hN9fW6KuKZxn52isYdyR",
+		);
+	});
+
+	it("ハイフン・アンダースコア入りの sessionId も抽出する", () => {
+		expect(
+			extractSessionIdFromUrl(
+				"https://claude.ai/code/session_09baa7d1-8aaf-4a38-8a2d-e56c3256a0c0",
+			),
+		).toBe("session_09baa7d1-8aaf-4a38-8a2d-e56c3256a0c0");
+	});
+
+	it("末尾スラッシュ付き URL からも抽出する", () => {
+		expect(extractSessionIdFromUrl("https://claude.ai/code/session_abc123/")).toBe(
+			"session_abc123",
+		);
+	});
+
+	it("クエリ・フラグメントが付いていても末尾セグメントのみ評価する", () => {
+		expect(extractSessionIdFromUrl("https://claude.ai/code/session_abc123?foo=bar")).toBe(
+			"session_abc123",
+		);
+		expect(extractSessionIdFromUrl("https://claude.ai/code/session_abc123#frag")).toBe(
+			"session_abc123",
+		);
+	});
+
+	it("末尾セグメントが SESSION_ID_PATTERN に合致しない場合は null を返す", () => {
+		expect(extractSessionIdFromUrl("https://claude.ai/code/")).toBeNull();
+		expect(extractSessionIdFromUrl("https://claude.ai/code/new")).toBeNull();
+		expect(extractSessionIdFromUrl("https://claude.ai/code/draft_abc")).toBeNull();
+	});
+
+	it("無効な URL 文字列に対しては null を返す", () => {
+		expect(extractSessionIdFromUrl("not-a-url")).toBeNull();
+		expect(extractSessionIdFromUrl("")).toBeNull();
 	});
 });

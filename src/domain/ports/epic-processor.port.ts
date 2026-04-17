@@ -36,6 +36,12 @@ export type TreeNodeKind =
 			readonly title: string;
 			readonly url: string;
 			readonly issueNumber: number;
+			/**
+			 * `true` のとき、この session ノードはユーザーが手動で Issue に紐付けた
+			 * `SessionIssueMapping` 経由で配置されていることを示す (Epic #43)。
+			 * regex 抽出のみで配置された場合は `false`。UI バッジ表示用。
+			 */
+			readonly isManuallyMapped: boolean;
 	  };
 
 export interface TreeNodeDto {
