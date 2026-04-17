@@ -56,6 +56,7 @@ function createDefaultProps() {
 		fetchPrs: createMockFetchPrs(),
 		fetchEpicTree: createMockFetchEpicTree(),
 		getClaudeSessions: createMockGetClaudeSessions(),
+		getSessionIssueMappings: vi.fn(async () => ({})),
 		getCachedPrs: createMockGetCachedPrs(),
 		loadPrsWithCache: createMockLoadPrsWithCache(),
 		subscribeToMessages: createMockSubscribeToMessages(),

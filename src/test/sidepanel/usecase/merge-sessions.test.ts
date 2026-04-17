@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { EpicTreeDto, TreeNodeDto } from "../../../domain/ports/epic-processor.port";
-import type { ClaudeSessionStorage } from "../../../shared/types/claude-session";
+import type {
+	ClaudeSessionStorage,
+	SessionIssueMapping,
+} from "../../../shared/types/claude-session";
 import { mergeSessionsIntoTree } from "../../../sidepanel/usecase/merge-sessions";
 
 function makeIssueNode(
@@ -45,7 +48,7 @@ describe("mergeSessionsIntoTree", () => {
 		};
 		const sessions: ClaudeSessionStorage = {};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		expect(result.roots).toHaveLength(1);
 		expect(result.roots[0].children).toHaveLength(1);
@@ -67,7 +70,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issueNode = result.roots[0].children[0];
 		expect(issueNode.children).toHaveLength(1);
@@ -95,7 +98,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const sessionNode = result.roots[0].children[0].children[0];
 		expect(sessionNode.depth).toBe(3);
@@ -124,7 +127,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issueNode = result.roots[0].children[0];
 		expect(issueNode.children).toHaveLength(2);
@@ -166,7 +169,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issueNode = result.roots[0].children[0];
 		expect(issueNode.children).toHaveLength(2);
@@ -191,7 +194,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		mergeSessionsIntoTree(tree, sessions);
+		mergeSessionsIntoTree(tree, sessions, {});
 
 		// Original tree must be unchanged
 		expect(originalIssue.children).toHaveLength(0);
@@ -216,7 +219,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const deepNode = result.roots[0].children[0].children[0];
 		expect(deepNode.children).toHaveLength(1);
@@ -240,7 +243,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		expect(result.roots[0].children[0].children[0].children).toEqual([]);
 	});
@@ -261,7 +264,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		expect(result.roots[0].children[0].children).toHaveLength(0);
 	});
@@ -296,7 +299,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issueNode = result.roots[0].children[0];
 		// 3つのセッションが同一タイトルなので最新の1つだけ表示
@@ -329,7 +332,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issueNode = result.roots[0].children[0];
 		// タイトルが異なるので両方表示
@@ -362,7 +365,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issue10 = result.roots[0].children[0];
 		const issue20 = result.roots[0].children[1];
@@ -413,7 +416,7 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		const issue10 = result.roots[0].children[0];
 		const issue20 = result.roots[0].children[1];
@@ -440,8 +443,248 @@ describe("mergeSessionsIntoTree", () => {
 			],
 		};
 
-		const result = mergeSessionsIntoTree(tree, sessions);
+		const result = mergeSessionsIntoTree(tree, sessions, {});
 
 		expect(result.roots).toHaveLength(0);
+	});
+
+	// Phase 2 (Issue #46): 手動マッピング統合
+	describe("SessionIssueMapping 統合", () => {
+		it("regex 抽出が null でも手動マッピングがあれば該当 Issue 配下に配置される", () => {
+			// 規模: storage には regex で拾えなかったため該当セッションが存在しないシナリオを
+			// 「規定外 issueNumber (tree に存在しない) 配下に格納されている」で模する。
+			// 手動マッピングで tree 内の Issue 10 に付け替える。
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"999": [
+					{
+						sessionUrl: "https://claude.ai/code/session_manual01",
+						title: "no issue keyword in title",
+						issueNumber: 999,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: false,
+					},
+				],
+			};
+			const mapping: SessionIssueMapping = { session_manual01: 10 };
+
+			const result = mergeSessionsIntoTree(tree, sessions, mapping);
+
+			const issueNode = result.roots[0].children[0];
+			expect(issueNode.children).toHaveLength(1);
+			const child = issueNode.children[0];
+			expect(child.kind.type).toBe("session");
+			if (child.kind.type === "session") {
+				expect(child.kind.url).toBe("https://claude.ai/code/session_manual01");
+				expect(child.kind.isManuallyMapped).toBe(true);
+			}
+		});
+
+		it("手動マッピングは regex 抽出結果より優先される", () => {
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10), makeIssueNode(20)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"20": [
+					{
+						sessionUrl: "https://claude.ai/code/session_override1",
+						title: "Investigate #20",
+						issueNumber: 20,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: true,
+					},
+				],
+			};
+			const mapping: SessionIssueMapping = { session_override1: 10 };
+
+			const result = mergeSessionsIntoTree(tree, sessions, mapping);
+
+			const issue10 = result.roots[0].children[0];
+			const issue20 = result.roots[0].children[1];
+			expect(issue10.children).toHaveLength(1);
+			expect(issue20.children).toHaveLength(0);
+			if (issue10.children[0].kind.type === "session") {
+				expect(issue10.children[0].kind.isManuallyMapped).toBe(true);
+			}
+		});
+
+		it("手動マッピングなし・regex ありでは既存動作を維持する", () => {
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"10": [
+					{
+						sessionUrl: "https://claude.ai/code/session_plain1",
+						title: "Inv #10",
+						issueNumber: 10,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: true,
+					},
+				],
+			};
+
+			const result = mergeSessionsIntoTree(tree, sessions, {});
+
+			const issueNode = result.roots[0].children[0];
+			expect(issueNode.children).toHaveLength(1);
+			const child = issueNode.children[0];
+			if (child.kind.type === "session") {
+				expect(child.kind.issueNumber).toBe(10);
+				expect(child.kind.isManuallyMapped).toBe(false);
+			}
+		});
+
+		it("マッピング先 Issue がツリーに存在しない場合、セッションはツリー外になる", () => {
+			// 後続 Phase で orphan セクションとして扱う。Phase 2 ではどこにも表示しない。
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"10": [
+					{
+						sessionUrl: "https://claude.ai/code/session_orphan1",
+						title: "#10 session",
+						issueNumber: 10,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: true,
+					},
+				],
+			};
+			const mapping: SessionIssueMapping = { session_orphan1: 777 };
+
+			const result = mergeSessionsIntoTree(tree, sessions, mapping);
+
+			const issue10 = result.roots[0].children[0];
+			expect(issue10.children).toHaveLength(0);
+		});
+
+		it("同タイトル衝突時、手動マッピング済みセッションが regex のみのセッションより優先される", () => {
+			// detectedAt だけを基準にすると、新しい regex セッションが古い手動マッピングセッションを
+			// 飲み込んで UI から消える。手動操作は意図的行為なので保護する。
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"999": [
+					{
+						sessionUrl: "https://claude.ai/code/session_manualOld",
+						title: "Same title",
+						issueNumber: 999,
+						detectedAt: "2026-04-01T00:00:00Z",
+						isLive: false,
+					},
+				],
+				"10": [
+					{
+						sessionUrl: "https://claude.ai/code/session_regexNew",
+						title: "Same title",
+						issueNumber: 10,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: true,
+					},
+				],
+			};
+			const mapping: SessionIssueMapping = { session_manualOld: 10 };
+
+			const result = mergeSessionsIntoTree(tree, sessions, mapping);
+
+			const issueNode = result.roots[0].children[0];
+			expect(issueNode.children).toHaveLength(1);
+			if (issueNode.children[0].kind.type === "session") {
+				expect(issueNode.children[0].kind.url).toBe("https://claude.ai/code/session_manualOld");
+				expect(issueNode.children[0].kind.isManuallyMapped).toBe(true);
+			}
+		});
+
+		it("storage key が非正整数 ('0'/'-1'/'abc') のセッションは effective issue 判定から除外される", () => {
+			// Number(issueKey) が NaN/0/負値のケースは watcher 側で発生し得ないが、
+			// storage 汚染や旧スキーマ混入への防御としてガードする。
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"0": [
+					{
+						sessionUrl: "https://claude.ai/code/session_badKey",
+						title: "bad key session",
+						issueNumber: 0,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: false,
+					},
+				],
+				abc: [
+					{
+						sessionUrl: "https://claude.ai/code/session_alphaKey",
+						title: "alpha key session",
+						issueNumber: 0,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: false,
+					},
+				],
+			};
+
+			// 手動マッピングなしでは tree に現れない (規定外 key は NaN/0 バケットに入って無視される)
+			const result = mergeSessionsIntoTree(tree, sessions, {});
+
+			const issueNode = result.roots[0].children[0];
+			expect(issueNode.children).toHaveLength(0);
+		});
+
+		it("storage key が非正整数でも手動マッピングがあれば Issue 配下に配置される", () => {
+			// 非正整数 key のセッション本体は storage に存在するため、手動マッピング経由で救済できる。
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"0": [
+					{
+						sessionUrl: "https://claude.ai/code/session_rescueMe",
+						title: "rescued session",
+						issueNumber: 0,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: false,
+					},
+				],
+			};
+			const mapping: SessionIssueMapping = { session_rescueMe: 10 };
+
+			const result = mergeSessionsIntoTree(tree, sessions, mapping);
+
+			const issueNode = result.roots[0].children[0];
+			expect(issueNode.children).toHaveLength(1);
+			if (issueNode.children[0].kind.type === "session") {
+				expect(issueNode.children[0].kind.isManuallyMapped).toBe(true);
+			}
+		});
+
+		it("sessionUrl から sessionId を抽出できない場合、手動マッピングの評価から除外される", () => {
+			// 壊れた URL の場合 regex 抽出結果にフォールバック (isManuallyMapped=false)。
+			const tree: EpicTreeDto = {
+				roots: [makeEpicNode(1, [makeIssueNode(10)])],
+			};
+			const sessions: ClaudeSessionStorage = {
+				"10": [
+					{
+						sessionUrl: "https://example.com/not-a-session-url",
+						title: "#10 weird url",
+						issueNumber: 10,
+						detectedAt: "2026-04-10T00:00:00Z",
+						isLive: false,
+					},
+				],
+			};
+			const mapping: SessionIssueMapping = { session_dummy: 10 };
+
+			const result = mergeSessionsIntoTree(tree, sessions, mapping);
+
+			const issueNode = result.roots[0].children[0];
+			expect(issueNode.children).toHaveLength(1);
+			if (issueNode.children[0].kind.type === "session") {
+				expect(issueNode.children[0].kind.isManuallyMapped).toBe(false);
+			}
+		});
 	});
 });

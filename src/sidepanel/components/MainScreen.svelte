@@ -3,7 +3,7 @@
 	import type { EpicTreeDto } from "../../domain/ports/epic-processor.port";
 	import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 	import type { CachedPrData } from "../../shared/types/cache";
-	import type { ClaudeSessionStorage } from "../../shared/types/claude-session";
+	import type { ClaudeSessionStorage, SessionIssueMapping } from "../../shared/types/claude-session";
 	import {
 		isCacheUpdatedEvent,
 		isClaudeSessionsUpdatedEvent,
@@ -29,6 +29,7 @@
 		fetchPrs: () => Promise<ProcessedPrsResult & { hasMore: boolean }>;
 		fetchEpicTree: () => Promise<{ tree: EpicTreeDto; prsRawJson: string }>;
 		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
+		getSessionIssueMappings: () => Promise<SessionIssueMapping>;
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
@@ -39,7 +40,36 @@
 		getDebugState?: () => Promise<DebugState>;
 	};
 
-	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getCachedPrs, loadPrsWithCache, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
+	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getSessionIssueMappings, getCachedPrs, loadPrsWithCache, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
+
+	/**
+	 * sessions と mapping を並行取得する。
+	 * mapping 側が reject しても sessions だけでツリーを構築できるよう allSettled を使い、
+	 * 失敗時は空 mapping にフォールバックしつつ DEV ビルドで warn を残す。
+	 * `getClaudeSessions` が reject した場合は従来通り上位 catch で epicError を表示する。
+	 */
+	async function fetchSessionsAndMapping(): Promise<{
+		sessions: ClaudeSessionStorage;
+		mapping: SessionIssueMapping;
+	}> {
+		const [sessionsResult, mappingResult] = await Promise.allSettled([
+			getClaudeSessions(),
+			getSessionIssueMappings(),
+		]);
+		if (sessionsResult.status === "rejected") {
+			throw sessionsResult.reason;
+		}
+		if (mappingResult.status === "rejected") {
+			if (import.meta.env.DEV) {
+				console.warn(
+					"[MainScreen] getSessionIssueMappings failed; falling back to empty mapping:",
+					mappingResult.reason,
+				);
+			}
+			return { sessions: sessionsResult.value, mapping: {} };
+		}
+		return { sessions: sessionsResult.value, mapping: mappingResult.value };
+	}
 
 	let showDebugPanel = $state(false);
 	let searchNotFoundMessage = $state<string | null>(null);
@@ -153,8 +183,8 @@
 			const { tree, prsRawJson } = await fetchEpicTree();
 			const prLinks = extractPrIssueLinks(prsRawJson);
 			const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
-			const sessions = await getClaudeSessions();
-			epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
+			const { sessions, mapping } = await fetchSessionsAndMapping();
+			epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
 			epicError = null;
 		} catch (e: unknown) {
 			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
@@ -215,9 +245,9 @@
 				const { tree, prsRawJson } = await fetchEpicTree();
 				const prLinks = extractPrIssueLinks(prsRawJson);
 				const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
-				const sessions = await getClaudeSessions();
+				const { sessions, mapping } = await fetchSessionsAndMapping();
 				if (!cancelled) {
-					epicData = mergeSessionsIntoTree(treeWithPrs, sessions);
+					epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
@@ -264,10 +294,10 @@
 				activeTabUrl = message.url;
 			}
 			if (isClaudeSessionsUpdatedEvent(message)) {
-				getClaudeSessions()
-					.then((sessions) => {
+				fetchSessionsAndMapping()
+					.then(({ sessions, mapping }) => {
 						if (epicData) {
-							epicData = mergeSessionsIntoTree(epicData, sessions);
+							epicData = mergeSessionsIntoTree(epicData, sessions, mapping);
 						}
 					})
 					.catch((err: unknown) => {

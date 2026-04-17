@@ -51,6 +51,7 @@ function createSessionChild(url: string, issueNumber: number): TreeNodeDto {
 			title: "Investigate Issue #42",
 			url,
 			issueNumber,
+			isManuallyMapped: false,
 		},
 		children: [],
 		depth: 2,

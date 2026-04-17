@@ -4,12 +4,13 @@ import { chromeSendMessage, subscribeToMessages } from "../adapter/chrome/messag
 import { ChromeStorageAdapter } from "../adapter/chrome/storage.adapter";
 import { TabNavigationAdapter } from "../adapter/chrome/tab-navigation.adapter";
 import type { EpicTreeDto } from "../domain/ports/epic-processor.port";
-import type { ClaudeSessionStorage } from "../shared/types/claude-session";
+import type { ClaudeSessionStorage, SessionIssueMapping } from "../shared/types/claude-session";
 import type { DebugState } from "../shared/types/messages";
 import { createAuthUseCase } from "../shared/usecase/auth.usecase";
 import { createDeviceFlowController } from "../shared/usecase/device-flow.controller";
 import { createPrUseCase } from "../shared/usecase/pr.usecase";
 import { createTabNavigationUseCase } from "../shared/usecase/tab-navigation.usecase";
+import { getAllMappings } from "../shared/utils/session-mapping-store";
 import type { WorkspaceResources } from "../shared/utils/workspace-resources";
 import App from "./App.svelte";
 import { createPinnedTabsStore } from "./stores/pinned-tabs.svelte";
@@ -62,6 +63,10 @@ async function getDebugState(): Promise<DebugState> {
 	return response.data;
 }
 
+async function getSessionIssueMappings(): Promise<SessionIssueMapping> {
+	return getAllMappings();
+}
+
 const app = mount(App, {
 	target,
 	props: {
@@ -69,6 +74,7 @@ const app = mount(App, {
 		prUseCase,
 		fetchEpicTree,
 		getClaudeSessions,
+		getSessionIssueMappings,
 		deviceFlowController,
 		subscribeToMessages,
 		pinnedTabsStore,

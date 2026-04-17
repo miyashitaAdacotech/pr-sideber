@@ -46,9 +46,28 @@ function assertValidIssueNumber(issueNumber: number): void {
 	}
 }
 
+/**
+ * chrome.storage.local から読み出した任意値を `SessionIssueMapping` に正規化する。
+ * 外部拡張や devtools 経由でストレージが汚染された場合でも信頼せず、
+ * 値側 (非正整数) とキー側 (sessionId パターン違反) の不正エントリは除外する。
+ * 全体が object でない場合は {} を返す。
+ */
+function sanitizeMapping(raw: unknown): SessionIssueMapping {
+	if (raw === null || raw === undefined) return {};
+	if (typeof raw !== "object" || Array.isArray(raw)) return {};
+	const result: Record<string, number> = {};
+	for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+		if (!isValidSessionId(key)) continue;
+		if (typeof value !== "number") continue;
+		if (!Number.isInteger(value) || value <= 0) continue;
+		result[key] = value;
+	}
+	return result;
+}
+
 async function readAll(): Promise<SessionIssueMapping> {
 	const result = await chrome.storage.local.get(STORAGE_KEY);
-	return (result[STORAGE_KEY] as SessionIssueMapping | undefined) ?? {};
+	return sanitizeMapping(result[STORAGE_KEY]);
 }
 
 export async function getMapping(sessionId: string): Promise<number | undefined> {

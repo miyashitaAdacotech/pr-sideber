@@ -30,6 +30,12 @@ pub enum TreeNodeKind {
         url: String,
         #[serde(rename = "issueNumber")]
         issue_number: u32,
+        /// `true` のとき、ユーザーが手動で `SessionIssueMapping` 経由で配置した
+        /// セッションであることを示す (Epic #43)。TS 側の TreeNodeDto とスキーマを一致させる。
+        /// `#[serde(default)]` により、このフィールドを含まない旧キャッシュ JSON を
+        /// 読んだ場合は `false` にフォールバックして後方互換を保つ。
+        #[serde(rename = "isManuallyMapped", default)]
+        is_manually_mapped: bool,
     },
 }
 
@@ -227,6 +233,7 @@ mod tests {
                 title: "Inv #1882".to_string(),
                 url: "https://claude.ai/code/session_123".to_string(),
                 issue_number: 1882,
+                is_manually_mapped: false,
             },
             2,
         );
@@ -236,5 +243,28 @@ mod tests {
             json.contains("\"issueNumber\""),
             "expected issueNumber in JSON, got: {json}"
         );
+    }
+
+    /// `isManuallyMapped` を含まない旧スキーマ JSON をデシリアライズしても、
+    /// `#[serde(default)]` により `false` フォールバックして後方互換を保つことを確認する。
+    #[test]
+    fn session_node_deserializes_legacy_json_without_is_manually_mapped() {
+        let legacy_json = r#"{
+            "kind": {
+                "type": "session",
+                "title": "legacy",
+                "url": "https://claude.ai/code/session_legacy",
+                "issueNumber": 42
+            },
+            "children": [],
+            "depth": 2
+        }"#;
+        let node: TreeNode = serde_json::from_str(legacy_json).expect("deserialize legacy JSON");
+        match node.kind {
+            TreeNodeKind::Session {
+                is_manually_mapped, ..
+            } => assert!(!is_manually_mapped),
+            other => panic!("expected Session variant, got {other:?}"),
+        }
     }
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from "svelte";
 	import type { EpicTreeDto } from "../domain/ports/epic-processor.port";
-	import type { ClaudeSessionStorage } from "../shared/types/claude-session";
+	import type { ClaudeSessionStorage, SessionIssueMapping } from "../shared/types/claude-session";
 	import LoginScreen from "./components/LoginScreen.svelte";
 	import MainScreen from "./components/MainScreen.svelte";
 	import type { createAuthUseCase } from "../shared/usecase/auth.usecase.js";
@@ -16,6 +16,7 @@
 		prUseCase: ReturnType<typeof createPrUseCase>;
 		fetchEpicTree: () => Promise<{ tree: EpicTreeDto; prsRawJson: string }>;
 		getClaudeSessions: () => Promise<ClaudeSessionStorage>;
+		getSessionIssueMappings: () => Promise<SessionIssueMapping>;
 		deviceFlowController: DeviceFlowController;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
 		pinnedTabsStore: PinnedTabsStore;
@@ -24,7 +25,7 @@
 		getCurrentTabUrl?: () => Promise<string | null>;
 		getDebugState?: () => Promise<DebugState>;
 	};
-	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, deviceFlowController, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
+	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, getSessionIssueMappings, deviceFlowController, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -64,7 +65,7 @@
 		<p>Loading...</p>
 	</div>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {pinnedTabsStore} {onNavigate} {onOpenWorkspace} {getCurrentTabUrl} {getDebugState} />
+	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} {getSessionIssueMappings} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {pinnedTabsStore} {onNavigate} {onOpenWorkspace} {getCurrentTabUrl} {getDebugState} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}

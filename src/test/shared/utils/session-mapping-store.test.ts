@@ -181,6 +181,50 @@ describe("session-mapping-store", () => {
 		it("空ストレージでは {} を返す", async () => {
 			await expect(getAllMappings()).resolves.toEqual({});
 		});
+
+		it("ストレージに不正な型が混入していた場合は {} を返す (ランタイム検証)", async () => {
+			// 外部拡張や devtools 経由でストレージが汚染されても信頼しない。
+			// 型アサーションだけでは誤った値が mergeSessionsIntoTree まで流れ込むため防御する。
+			const mock = (
+				chrome.storage.local as unknown as {
+					get: { mockImplementationOnce: (fn: () => Promise<unknown>) => void };
+				}
+			).get;
+			mock.mockImplementationOnce(async () => ({ [STORAGE_KEY]: "not-an-object" }));
+			await expect(getAllMappings()).resolves.toEqual({});
+		});
+
+		it("値側が非正整数のエントリはスキップされる (key は妥当だが value が壊れているケース)", async () => {
+			const mock = (
+				chrome.storage.local as unknown as {
+					get: { mockImplementationOnce: (fn: () => Promise<unknown>) => void };
+				}
+			).get;
+			mock.mockImplementationOnce(async () => ({
+				[STORAGE_KEY]: {
+					[VALID_SESSION_A]: 1,
+					[VALID_SESSION_B]: -5,
+					[VALID_SESSION_C]: "10",
+				},
+			}));
+			await expect(getAllMappings()).resolves.toEqual({ [VALID_SESSION_A]: 1 });
+		});
+
+		it("キー側が sessionId パターンに合致しないエントリはスキップされる", async () => {
+			const mock = (
+				chrome.storage.local as unknown as {
+					get: { mockImplementationOnce: (fn: () => Promise<unknown>) => void };
+				}
+			).get;
+			mock.mockImplementationOnce(async () => ({
+				[STORAGE_KEY]: {
+					[VALID_SESSION_A]: 1,
+					[INVALID_SESSION]: 2,
+					__proto__: 3,
+				},
+			}));
+			await expect(getAllMappings()).resolves.toEqual({ [VALID_SESSION_A]: 1 });
+		});
 	});
 
 	describe("race condition", () => {
