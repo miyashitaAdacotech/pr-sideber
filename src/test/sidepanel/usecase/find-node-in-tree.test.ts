@@ -99,6 +99,7 @@ describe("findNodeInTree", () => {
 				url: "https://claude.ai/code/session_abc",
 				issueNumber: 500,
 				isManuallyMapped: false,
+				sessionId: "session_abc",
 			},
 			children: [],
 			depth: 2,
@@ -164,6 +165,7 @@ describe("nodeKeyFor", () => {
 				url: "https://claude.ai/code/session_abc",
 				issueNumber: 10,
 				isManuallyMapped: false,
+				sessionId: "session_abc",
 			}),
 		).toBe("session-10-https://claude.ai/code/session_abc");
 	});

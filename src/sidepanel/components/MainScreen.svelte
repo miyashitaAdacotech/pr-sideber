@@ -33,6 +33,7 @@
 		getCachedPrs: () => Promise<CachedPrData | null>;
 		loadPrsWithCache: (minutes: number) => Promise<(ProcessedPrsResult & { hasMore: boolean }) | null>;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
+		subscribeToMappingChanges?: (callback: () => void) => () => void;
 		pinnedTabsStore: PinnedTabsStore;
 		onNavigate?: (url: string) => void;
 		onOpenWorkspace?: (resources: WorkspaceResources) => void;
@@ -40,7 +41,7 @@
 		getDebugState?: () => Promise<DebugState>;
 	};
 
-	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getSessionIssueMappings, getCachedPrs, loadPrsWithCache, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
+	const { onLogout, fetchPrs, fetchEpicTree, getClaudeSessions, getSessionIssueMappings, getCachedPrs, loadPrsWithCache, subscribeToMessages, subscribeToMappingChanges, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
 
 	/**
 	 * sessions と mapping を並行取得する。
@@ -161,6 +162,30 @@
 	let epicData = $state<EpicTreeDto | null>(null);
 	let epicError = $state<string | null>(null);
 	let activeWorkspaceIssueNumber = $state<number | null>(null);
+	// session 未マージ状態のツリーを保持する。session / mapping イベントの再マージ時は
+	// 必ずこれを source に使うことで、epicData (= session マージ済み) を再入力して
+	// session ノードが累積するバグ (Phase 4 HIGH-3) を防ぐ。
+	let treeWithPrs = $state<EpicTreeDto | null>(null);
+
+	/**
+	 * sessions と mapping を取得し、保持している treeWithPrs と結合して epicData を更新する。
+	 * `isClaudeSessionsUpdatedEvent` と `subscribeToMappingChanges` の両方から呼ばれる。
+	 * 両者は重複発火の可能性があるが、source が固定された treeWithPrs なので冪等。
+	 * 失敗時は epicError にメッセージを設定し、本番でも console.error でログする
+	 * (サイレントフォールバック禁止)。
+	 */
+	async function reloadSessionsAndMapping(): Promise<void> {
+		try {
+			const { sessions, mapping } = await fetchSessionsAndMapping();
+			if (treeWithPrs) {
+				epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
+			}
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : "Failed to reload sessions";
+			console.error("[MainScreen] reloadSessionsAndMapping failed:", err);
+			epicError = message;
+		}
+	}
 
 	function handleOpenWorkspace(resources: WorkspaceResources): void {
 		activeWorkspaceIssueNumber = resources.issueNumber;
@@ -182,9 +207,11 @@
 		try {
 			const { tree, prsRawJson } = await fetchEpicTree();
 			const prLinks = extractPrIssueLinks(prsRawJson);
-			const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
+			// treeWithPrs は session 未マージ状態。再マージ時の source として保持する。
+			const nextTreeWithPrs = movePrsToLinkedIssues(tree, prLinks);
 			const { sessions, mapping } = await fetchSessionsAndMapping();
-			epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
+			treeWithPrs = nextTreeWithPrs;
+			epicData = mergeSessionsIntoTree(nextTreeWithPrs, sessions, mapping);
 			epicError = null;
 		} catch (e: unknown) {
 			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
@@ -244,10 +271,12 @@
 			try {
 				const { tree, prsRawJson } = await fetchEpicTree();
 				const prLinks = extractPrIssueLinks(prsRawJson);
-				const treeWithPrs = movePrsToLinkedIssues(tree, prLinks);
+				// session 未マージ状態のツリーを保持し、再マージ時の source とする。
+				const nextTreeWithPrs = movePrsToLinkedIssues(tree, prLinks);
 				const { sessions, mapping } = await fetchSessionsAndMapping();
 				if (!cancelled) {
-					epicData = mergeSessionsIntoTree(treeWithPrs, sessions, mapping);
+					treeWithPrs = nextTreeWithPrs;
+					epicData = mergeSessionsIntoTree(nextTreeWithPrs, sessions, mapping);
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
@@ -294,22 +323,27 @@
 				activeTabUrl = message.url;
 			}
 			if (isClaudeSessionsUpdatedEvent(message)) {
-				fetchSessionsAndMapping()
-					.then(({ sessions, mapping }) => {
-						if (epicData) {
-							epicData = mergeSessionsIntoTree(epicData, sessions, mapping);
-						}
-					})
-					.catch((err: unknown) => {
-						if (import.meta.env.DEV) {
-							console.warn("[MainScreen] claude sessions reload failed:", err);
-						}
-					});
+				// subscribeToMappingChanges と重複発火する可能性があるが、
+				// reloadSessionsAndMapping は treeWithPrs を source とするため冪等。
+				void reloadSessionsAndMapping();
 			}
 		}
 
 		const unsubscribe = subscribeToMessages(onMessage);
 
+		return () => {
+			unsubscribe();
+		};
+	});
+
+	// sessionIssueMapping の更新 (LinkSessionDialog からの書き込み等) を購読して
+	// 手動マッピング反映後にツリーを即座に再構築する。
+	// isClaudeSessionsUpdatedEvent と重複発火する可能性があるが冪等 (common reloader)。
+	$effect(() => {
+		if (!subscribeToMappingChanges) return;
+		const unsubscribe = subscribeToMappingChanges(() => {
+			void reloadSessionsAndMapping();
+		});
 		return () => {
 			unsubscribe();
 		};

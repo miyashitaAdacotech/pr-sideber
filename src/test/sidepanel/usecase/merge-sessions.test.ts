@@ -79,6 +79,70 @@ describe("mergeSessionsIntoTree", () => {
 			expect(issueNode.children[0].kind.title).toBe("Inv #10 fix tests");
 			expect(issueNode.children[0].kind.url).toBe("https://claude.ai/code/session-1");
 			expect(issueNode.children[0].kind.issueNumber).toBe(10);
+			// URL が `session_XXX` パターンに合致しないため sessionId は null になる
+			// sessionId フィールドは Phase 3 で TreeNodeKind に追加される予定。
+			// 追加前は型に存在しないため unknown 経由でアクセスし、実行時 undefined で
+			// null 比較が失敗することで RED を成立させる。
+			expect(
+				(issueNode.children[0].kind as unknown as { sessionId: string | null }).sessionId,
+			).toBeNull();
+		}
+	});
+
+	// Phase 3 (Issue #47): sessionId フィールドを session ノードに埋める
+	it("正常な URL から sessionId を抽出して session ノードに載せる", () => {
+		const tree: EpicTreeDto = {
+			roots: [makeEpicNode(1, [makeIssueNode(10)])],
+		};
+		const sessions: ClaudeSessionStorage = {
+			"10": [
+				{
+					sessionUrl: "https://claude.ai/code/session_abc123def456",
+					title: "Inv #10",
+					issueNumber: 10,
+					detectedAt: "2026-04-01T00:00:00Z",
+					isLive: true,
+				},
+			],
+		};
+
+		const result = mergeSessionsIntoTree(tree, sessions, {});
+
+		const issueNode = result.roots[0].children[0];
+		expect(issueNode.children).toHaveLength(1);
+		const child = issueNode.children[0];
+		expect(child.kind.type).toBe("session");
+		if (child.kind.type === "session") {
+			expect((child.kind as unknown as { sessionId: string | null }).sessionId).toBe(
+				"session_abc123def456",
+			);
+		}
+	});
+
+	it("不正な URL からは sessionId が null になる", () => {
+		const tree: EpicTreeDto = {
+			roots: [makeEpicNode(1, [makeIssueNode(10)])],
+		};
+		const sessions: ClaudeSessionStorage = {
+			"10": [
+				{
+					sessionUrl: "https://example.com/foo",
+					title: "Inv #10",
+					issueNumber: 10,
+					detectedAt: "2026-04-01T00:00:00Z",
+					isLive: false,
+				},
+			],
+		};
+
+		const result = mergeSessionsIntoTree(tree, sessions, {});
+
+		const issueNode = result.roots[0].children[0];
+		expect(issueNode.children).toHaveLength(1);
+		const child = issueNode.children[0];
+		expect(child.kind.type).toBe("session");
+		if (child.kind.type === "session") {
+			expect((child.kind as unknown as { sessionId: string | null }).sessionId).toBeNull();
 		}
 	});
 
