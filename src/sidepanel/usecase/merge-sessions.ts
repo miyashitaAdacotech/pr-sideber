@@ -7,9 +7,14 @@ import type {
 import { extractSessionIdFromUrl } from "../../shared/utils/session-id";
 
 /**
- * ツリー配置決定済みのセッション。`isManuallyMapped` は UI バッジ表示用 (Epic #43)。
+ * ツリー配置決定済みのセッション。`isManuallyMapped` は UI バッジ表示用 (Epic #43)、
+ * `sessionId` は LinkSessionDialog 表示判定および手動マッピング書き込みキー (Issue #47)。
+ * URL から抽出できなかった場合は `null`。
  */
-type ResolvedSession = ClaudeSession & { readonly isManuallyMapped: boolean };
+type ResolvedSession = ClaudeSession & {
+	readonly isManuallyMapped: boolean;
+	readonly sessionId: string | null;
+};
 
 /**
  * 同一タイトルのセッションを重複排除し、各タイトルで代表 1 件のみ残す。
@@ -94,7 +99,7 @@ function resolveEffectivePlacement(
 			// なければ effective placement を諦める (どの Issue ノードにも合致しない)。
 			if (manualIssueNum === undefined && !hasValidRegexKey) continue;
 			const effectiveIssueNum = manualIssueNum ?? regexIssueNum;
-			const placed: ResolvedSession = { ...session, isManuallyMapped };
+			const placed: ResolvedSession = { ...session, isManuallyMapped, sessionId };
 			const bucket = result.get(effectiveIssueNum);
 			if (bucket) {
 				bucket.push(placed);
@@ -142,6 +147,8 @@ function mergeSessionsIntoNode(
 				// (手動マッピングで移動したセッションは移動先を指す)
 				issueNumber,
 				isManuallyMapped: s.isManuallyMapped,
+				// URL 抽出結果をそのまま伝播。壊れた URL は null で UI 側が Link ボタンを隠す。
+				sessionId: s.sessionId,
 			},
 			children: [] as readonly TreeNodeDto[],
 			depth: node.depth + 1,

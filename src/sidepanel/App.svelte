@@ -19,13 +19,14 @@
 		getSessionIssueMappings: () => Promise<SessionIssueMapping>;
 		deviceFlowController: DeviceFlowController;
 		subscribeToMessages: (callback: (message: unknown) => void) => () => void;
+		subscribeToMappingChanges?: (callback: () => void) => () => void;
 		pinnedTabsStore: PinnedTabsStore;
 		onNavigate?: (url: string) => void;
 		onOpenWorkspace?: (resources: WorkspaceResources) => void;
 		getCurrentTabUrl?: () => Promise<string | null>;
 		getDebugState?: () => Promise<DebugState>;
 	};
-	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, getSessionIssueMappings, deviceFlowController, subscribeToMessages, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
+	const { authUseCase, prUseCase, fetchEpicTree, getClaudeSessions, getSessionIssueMappings, deviceFlowController, subscribeToMessages, subscribeToMappingChanges, pinnedTabsStore, onNavigate, onOpenWorkspace, getCurrentTabUrl, getDebugState }: Props = $props();
 
 	let authenticated = $state(false);
 	let loading = $state(true);
@@ -65,7 +66,7 @@
 		<p>Loading...</p>
 	</div>
 {:else if authenticated}
-	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} {getSessionIssueMappings} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {pinnedTabsStore} {onNavigate} {onOpenWorkspace} {getCurrentTabUrl} {getDebugState} />
+	<MainScreen onLogout={handleLogout} fetchPrs={() => prUseCase.fetchPrs()} {fetchEpicTree} {getClaudeSessions} {getSessionIssueMappings} getCachedPrs={() => prUseCase.getCachedPrs()} loadPrsWithCache={(minutes: number) => prUseCase.loadPrsWithCache(minutes)} {subscribeToMessages} {subscribeToMappingChanges} {pinnedTabsStore} {onNavigate} {onOpenWorkspace} {getCurrentTabUrl} {getDebugState} />
 {:else}
 	<LoginScreen controller={deviceFlowController} />
 {/if}

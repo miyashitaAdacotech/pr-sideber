@@ -42,6 +42,13 @@ export type TreeNodeKind =
 			 * regex 抽出のみで配置された場合は `false`。UI バッジ表示用。
 			 */
 			readonly isManuallyMapped: boolean;
+			/**
+			 * 正規 URL から抽出したセッション ID (`extractSessionIdFromUrl` の戻り値)。
+			 * URL が壊れていて抽出できない場合は `null`。
+			 * Rust 側の `session_id: Option<String>` と対応 (Issue #47)。
+			 * LinkSessionDialog 表示判定および手動マッピング書き込み時のキーに使う。
+			 */
+			readonly sessionId: string | null;
 	  };
 
 export interface TreeNodeDto {

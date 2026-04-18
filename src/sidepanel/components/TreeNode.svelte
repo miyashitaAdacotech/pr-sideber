@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { flushSync } from "svelte";
 	import type { TreeNodeDto } from "../../domain/ports/epic-processor.port";
 	import { safeUrl } from "../../shared/utils/url";
 	import type { WorkspaceResources } from "../../shared/utils/workspace-resources";
 	import { resolveWorkspaceResources } from "../../shared/utils/workspace-resources";
 	import { nodeKeyFor } from "../usecase/find-node-in-tree";
+	import LinkSessionDialog from "./LinkSessionDialog.svelte";
 	import TreeNode from "./TreeNode.svelte";
 
 	type Props = {
@@ -33,6 +35,7 @@
 
 	let open = $state(true);
 	let hovered = $state(false);
+	let linkDialogOpen = $state(false);
 	const hasChildren = $derived(node.children.length > 0);
 	const MAX_INDENT_DEPTH = 3;
 	const displayDepth = $derived(Math.min(node.depth, MAX_INDENT_DEPTH));
@@ -178,7 +181,31 @@
 			<a class="node-title clickable" href={safeUrl(node.kind.type === "session" ? node.kind.url : "")} target="_blank" rel="noopener noreferrer">
 				{node.kind.title}
 			</a>
+			{#if node.kind.isManuallyMapped}
+				<span class="state-badge manual-mapping-badge" title="手動マッピング">manual</span>
+			{/if}
+			{#if node.kind.sessionId}
+				<button
+					class="link-session-btn"
+					onclick={(e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						// テストで同期的に DOM 状態を検証できるよう、および連続したユーザー操作で
+						// ちらつきを防ぐため明示的に同期化する。
+						flushSync(() => { linkDialogOpen = true; });
+					}}
+					aria-label="Link to issue"
+					title="Issue に紐付け"
+				>&#128279;</button>
+			{/if}
 		</div>
+		{#if linkDialogOpen && node.kind.sessionId}
+			<LinkSessionDialog
+				title={node.kind.title}
+				sessionId={node.kind.sessionId}
+				onClose={() => { linkDialogOpen = false; }}
+			/>
+		{/if}
 	{/if}
 
 	{#if open && hasChildren}
@@ -446,6 +473,29 @@
 	}
 
 	.pin-btn:hover {
+		color: var(--color-accent-primary);
+		border-color: var(--color-accent-primary);
+	}
+
+	.state-badge.manual-mapping-badge {
+		background: var(--color-bg-secondary);
+		color: var(--color-text-secondary);
+	}
+
+	.link-session-btn {
+		background: none;
+		border: 1px solid transparent;
+		border-radius: 4px;
+		padding: 0.0625rem 0.25rem;
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		font-size: 0.75rem;
+		flex-shrink: 0;
+		line-height: 1;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.link-session-btn:hover {
 		color: var(--color-accent-primary);
 		border-color: var(--color-accent-primary);
 	}

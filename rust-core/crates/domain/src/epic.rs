@@ -36,6 +36,13 @@ pub enum TreeNodeKind {
         /// 読んだ場合は `false` にフォールバックして後方互換を保つ。
         #[serde(rename = "isManuallyMapped", default)]
         is_manually_mapped: bool,
+        /// 正規 URL から抽出したセッション ID (TS 側 `extractSessionIdFromUrl` 相当)。
+        /// URL が壊れていて抽出できない場合は `None` となる (Issue #47)。
+        /// `#[serde(default)]` で旧キャッシュ JSON (このフィールド無し) を `None` に
+        /// フォールバックさせる。TS 側の `sessionId: string | null` と整合させるため、
+        /// `skip_serializing_if` は付けず、`None` のとき `"sessionId":null` を必ず出力する。
+        #[serde(rename = "sessionId", default)]
+        session_id: Option<String>,
     },
 }
 
@@ -234,6 +241,7 @@ mod tests {
                 url: "https://claude.ai/code/session_123".to_string(),
                 issue_number: 1882,
                 is_manually_mapped: false,
+                session_id: None,
             },
             2,
         );
@@ -264,6 +272,87 @@ mod tests {
             TreeNodeKind::Session {
                 is_manually_mapped, ..
             } => assert!(!is_manually_mapped),
+            other => panic!("expected Session variant, got {other:?}"),
+        }
+    }
+
+    // Phase 3 (Issue #47): Session バリアントに `session_id: Option<String>` を追加する。
+    // TS 側の `TreeNodeKind` (session バリアント) と同じスキーマを持たせ、
+    // sidepanel UI の Link ボタン表示判定で使う。
+    //
+    // このテストは Session に `session_id` フィールドが未定義のためコンパイルエラーで
+    // RED になる。GREEN フェーズでフィールドを追加した時点で解消する想定。
+
+    /// Session ノードをシリアライズすると `"sessionId"` (camelCase) を含むことを確認する。
+    /// Rust 側は `session_id: Option<String>` で、`#[serde(rename = "sessionId")]` を付けて
+    /// TS 側の命名と揃える。
+    #[test]
+    fn session_node_json_has_camel_case_session_id() {
+        let node = TreeNode::new(
+            TreeNodeKind::Session {
+                title: "Inv #42".to_string(),
+                url: "https://claude.ai/code/session_abc".to_string(),
+                issue_number: 42,
+                is_manually_mapped: false,
+                session_id: Some("session_abc".to_string()),
+            },
+            2,
+        );
+        let json = serde_json::to_string(&node).expect("serialize");
+        eprintln!("Session node JSON: {json}");
+        assert!(
+            json.contains("\"sessionId\""),
+            "expected sessionId in JSON, got: {json}"
+        );
+        assert!(
+            json.contains("\"session_abc\""),
+            "expected session_abc value in JSON, got: {json}"
+        );
+    }
+
+    /// LOW-4 (Phase 3b レビュー指摘): `session_id` が `None` のときも
+    /// JSON 出力に `"sessionId":null` が含まれることを保証する。
+    /// TS 側の `sessionId: string | null` と整合させるため、
+    /// `#[serde(skip_serializing_if = "Option::is_none")]` を付けて undefined 扱いに
+    /// してしまうと TS 側の型契約と破綻する。明示的に null 出力されることを契約として固定する。
+    #[test]
+    fn session_node_json_emits_null_when_session_id_is_none() {
+        let node = TreeNode::new(
+            TreeNodeKind::Session {
+                title: "No session id".to_string(),
+                url: "https://claude.ai/code/unknown".to_string(),
+                issue_number: 1,
+                is_manually_mapped: false,
+                session_id: None,
+            },
+            2,
+        );
+        let json = serde_json::to_string(&node).expect("serialize");
+        eprintln!("Session node JSON (None): {json}");
+        assert!(
+            json.contains("\"sessionId\":null"),
+            "expected sessionId:null in JSON, got: {json}"
+        );
+    }
+
+    /// `sessionId` フィールドを持たない旧キャッシュ JSON を deserialize しても
+    /// `#[serde(default)]` で `session_id == None` にフォールバックすることを確認する。
+    #[test]
+    fn session_node_deserializes_legacy_json_without_session_id() {
+        let legacy_json = r#"{
+            "kind": {
+                "type": "session",
+                "title": "legacy session without sessionId",
+                "url": "https://claude.ai/code/session_legacy2",
+                "issueNumber": 99,
+                "isManuallyMapped": false
+            },
+            "children": [],
+            "depth": 2
+        }"#;
+        let node: TreeNode = serde_json::from_str(legacy_json).expect("deserialize legacy JSON");
+        match node.kind {
+            TreeNodeKind::Session { session_id, .. } => assert_eq!(session_id, None),
             other => panic!("expected Session variant, got {other:?}"),
         }
     }

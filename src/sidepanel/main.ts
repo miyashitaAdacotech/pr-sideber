@@ -11,6 +11,7 @@ import { createDeviceFlowController } from "../shared/usecase/device-flow.contro
 import { createPrUseCase } from "../shared/usecase/pr.usecase";
 import { createTabNavigationUseCase } from "../shared/usecase/tab-navigation.usecase";
 import { getAllMappings } from "../shared/utils/session-mapping-store";
+import { subscribeToMappingChanges } from "../shared/utils/session-mapping-subscribe";
 import type { WorkspaceResources } from "../shared/utils/workspace-resources";
 import App from "./App.svelte";
 import { createPinnedTabsStore } from "./stores/pinned-tabs.svelte";
@@ -77,6 +78,7 @@ const app = mount(App, {
 		getSessionIssueMappings,
 		deviceFlowController,
 		subscribeToMessages,
+		subscribeToMappingChanges,
 		pinnedTabsStore,
 		onNavigate: (url: string) => tabNavigationUseCase.navigateToPr(url),
 		onOpenWorkspace: async (resources: WorkspaceResources) => {
