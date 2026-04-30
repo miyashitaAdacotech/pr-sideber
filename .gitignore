@@ -3,6 +3,12 @@
 .env.local
 .env.*.local
 .claude/settings.local.json
+.claude/.tool-failure-streak
+.claude/.tool-failure-streak.lock
+.claude/mockups/
+.claude/worktrees/
+.superpowers/
+*.un~
 
 node_modules/
 dist/
