@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { flushSync } from "svelte";
 	import type { TreeNodeDto } from "../../domain/ports/epic-processor.port";
+	import type { ApprovalStatus, CiStatus } from "../../domain/ports/pr-processor.port";
 	import { safeUrl } from "../../shared/utils/url";
 	import type { WorkspaceResources } from "../../shared/utils/workspace-resources";
 	import { resolveWorkspaceResources } from "../../shared/utils/workspace-resources";
 	import { nodeKeyFor } from "../usecase/find-node-in-tree";
+	import ApprovalBadge from "./ApprovalBadge.svelte";
+	import CiBadge from "./CiBadge.svelte";
+	import DraftBadge from "./DraftBadge.svelte";
 	import LinkSessionDialog from "./LinkSessionDialog.svelte";
 	import TreeNode from "./TreeNode.svelte";
 
@@ -154,22 +158,10 @@
 				<span class="additions">+{node.kind.prData.additions}</span>
 				<span class="deletions">-{node.kind.prData.deletions}</span>
 			</span>
-			{#if node.kind.prData.isDraft}
-				<span class="state-badge draft">Draft</span>
-			{/if}
+			<DraftBadge isDraft={node.kind.prData.isDraft} />
 			{#if !node.kind.prData.isDraft}
-				{#if node.kind.prData.approvalStatus === "Approved"}
-					<span class="state-badge approved">Approved</span>
-				{:else if node.kind.prData.approvalStatus === "ChangesRequested"}
-					<span class="state-badge changes-requested">Changes</span>
-				{/if}
-				{#if node.kind.prData.ciStatus === "Passed"}
-					<span class="ci-badge passed">CI</span>
-				{:else if node.kind.prData.ciStatus === "Failed"}
-					<span class="ci-badge failed">CI</span>
-				{:else if node.kind.prData.ciStatus === "Pending"}
-					<span class="ci-badge pending">CI</span>
-				{/if}
+				<ApprovalBadge approvalStatus={node.kind.prData.approvalStatus as ApprovalStatus} />
+				<CiBadge ciStatus={node.kind.prData.ciStatus as CiStatus} />
 			{/if}
 		</div>
 	{:else if node.kind.type === "session"}
@@ -366,42 +358,9 @@
 		color: #fff;
 	}
 
-	.state-badge.draft {
-		background: var(--color-bg-secondary);
-		color: var(--color-text-secondary);
-	}
-
-	.state-badge.approved {
-		background: var(--color-badge-green);
-		color: #fff;
-	}
-
-	.state-badge.changes-requested {
-		background: var(--color-badge-red);
-		color: #fff;
-	}
-
-	.ci-badge {
-		font-size: 0.625rem;
-		padding: 0.0625rem 0.375rem;
-		border-radius: 10px;
-		flex-shrink: 0;
-	}
-
-	.ci-badge.passed {
-		background: var(--color-badge-green);
-		color: #fff;
-	}
-
-	.ci-badge.failed {
-		background: var(--color-badge-red);
-		color: #fff;
-	}
-
-	.ci-badge.pending {
-		background: var(--color-badge-yellow);
-		color: #856404;
-	}
+	/* PR バッジ (draft/approval/ci) は ApprovalBadge / CiBadge / DraftBadge コンポーネントへ移譲したため、
+	 * 旧 .state-badge.draft / approved / changes-requested および .ci-badge.* は削除した。
+	 * .state-badge.closed (Issue) と .state-badge.manual-mapping-badge (Session) は引き続き使用。 */
 
 	.size-text {
 		font-size: 0.6875rem;
