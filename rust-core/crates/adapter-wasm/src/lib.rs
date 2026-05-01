@@ -78,6 +78,9 @@ pub fn process_issues(raw_json: &str) -> Result<JsValue, JsError> {
 }
 
 /// Issue + PR の JSON を受け取り、Epic ツリーを返す。
+///
+/// PR-Issue リンク (`closingIssuesReferences` / `linkedIssues`) を解釈し、
+/// 「Epic なし」配下の PR をリンク先 Issue ノードの子へ自動的に移動する。
 #[wasm_bindgen(js_name = "processEpicTree")]
 pub fn process_epic_tree(issues_json: &str, prs_json: &str) -> Result<JsValue, JsError> {
     let issues =
@@ -86,13 +89,16 @@ pub fn process_epic_tree(issues_json: &str, prs_json: &str) -> Result<JsValue, J
     let parsed_prs =
         parser::parse_pull_request_nodes(prs_json).map_err(|e| JsError::new(&e.to_string()))?;
 
+    // pr_issue_links は my_prs / review_requests の所有権移動より前に取り出す
+    let pr_issue_links = parsed_prs.pr_issue_links;
+
     let all_prs = {
         let processed =
             usecase::process::process_pull_requests(parsed_prs.my_prs, parsed_prs.review_requests);
         processed.my_prs
     };
 
-    let tree = usecase::epic_process::build_epic_tree(issues, all_prs);
+    let tree = usecase::epic_process::build_epic_tree(issues, all_prs, pr_issue_links);
 
     let dto = EpicTreeDto { roots: tree };
     // serde_wasm_bindgen は internally tagged enum の #[serde(rename)] を正しく処理しない場合がある。
