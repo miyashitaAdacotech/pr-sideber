@@ -27,46 +27,33 @@ function removeDuplicateUrlFromOtherKeys(
 /**
  * Claude Code Web のセッションタイトルから Issue 番号を抽出する。
  *
- * パターン:
- * - "Inv #1882 [#1613] CI/CD App統一" -> 1882
- * - "Investigate issue 2185" -> 2185
- * - "[close] issue 1966" -> 1966
- * - "Inv #2013 -> #2065 [#1671]..." -> 2013
- * - "playwright codegenみたいなのEpic 2576" -> 2576 (Issue #40)
+ * 方針 (Issue #3268, ADR 002-session-issue-mapping-prefix-only):
+ * 業界標準 (GitHub Autolink, Jira Smart Commits, Linear Magic Links) と同じく
+ * 明示 prefix を要求する設計に統一した。自由形式タイトルからの自然言語的抽出は
+ * 過去 #34/#40/#42/#3268 の 4 連続デグレを発生させたため廃止。
+ *
+ * 対応パターン (この順で先勝ち):
+ * - "#数字" (例: "Inv #1882", "#2013 -> #2065", "BlackSmith検証#3268⓪")
+ * - "issue 数字" 大小不問 (例: "Investigate issue 2185", "[close] issue 1966")
+ * - "epic 数字" 大小不問 (例: "...Epic 2576")
+ *
+ * 上記いずれにも該当しないタイトルは null。UI 側で未紐付けセッションとして表示し、
+ * LinkSessionDialog (Issue #47) から手動紐付けに誘導する。
  */
 export function extractIssueNumberFromTitle(title: string): number | null {
-	// "#数字" パターン (例: "Inv #1882", "#2013 -> #2065")
 	const hashMatch = /#(\d+)/.exec(title);
 	if (hashMatch) {
 		return Number(hashMatch[1]);
 	}
 
-	// "issue 数字" パターン — 大文字小文字不問 (例: "Investigate issue 2185")
 	const issueMatch = /issue\s+(\d+)/i.exec(title);
 	if (issueMatch) {
 		return Number(issueMatch[1]);
 	}
 
-	// "epic 数字" パターン — 大文字小文字不問 (例: "...Epic 2576")
-	// `#` や `issue` キーワードを含まない Epic タイトルをカバーする (Issue #40)
 	const epicMatch = /epic\s+(\d+)/i.exec(title);
 	if (epicMatch) {
 		return Number(epicMatch[1]);
-	}
-
-	// 末尾数字フォールバック — キーワードなしタイトル (例: "Context Rot対策 2598") を救済する (Issue #42)
-	// 語境界あり・3桁以上・末尾限定で誤検出を最小化。" | Claude Code" サフィックスは許容。
-	// フォールバック発動は logDebug で追跡可能にする (誤検出デバッグ用)。
-	const trailingMatch = /(?:^|\s)(\d{3,})(?:\s*\|.*)?$/.exec(title);
-	if (trailingMatch) {
-		const issueNumber = Number(trailingMatch[1]);
-		logDebug(
-			"info",
-			"watcher",
-			"extractIssueNumberFromTitle matched via trailing-digit fallback",
-			`title="${title}" → ${issueNumber}`,
-		).catch(() => {});
-		return issueNumber;
 	}
 
 	return null;
