@@ -5,8 +5,8 @@ import type { IssueApiPort } from "../domain/ports/issue-api.port";
 import type { IssueProcessorPort } from "../domain/ports/issue-processor.port";
 import type { PrProcessorPort } from "../domain/ports/pr-processor.port";
 import type { TabNavigationPort } from "../domain/ports/tab-navigation.port";
+import type { WorkspaceOpenRequest } from "../shared/types/workspace";
 import type { ClaudeSessionWatcher } from "./claude-session-watcher";
-import type { WorkspaceOpenRequest } from "./workspace-open.usecase";
 
 export type BadgeService = {
 	readonly updateBadge: (reviewRequestCount: number) => Promise<void>;

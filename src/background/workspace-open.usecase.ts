@@ -1,15 +1,12 @@
 import type { ScreenBounds, WindowManagerPort } from "../domain/ports/window-manager.port";
+import type { WorkspaceOpenRequest } from "../shared/types/workspace";
+
+// WorkspaceOpenRequest は shared/types/workspace に統合 (Issue #13)。
+// 下流で本モジュール経由の型参照を維持するため re-export する。
+export type { WorkspaceOpenRequest };
 
 /** 配置済み判定の許容誤差 (px) */
 const POSITION_TOLERANCE = 20;
-
-export interface WorkspaceOpenRequest {
-	readonly issueNumber: number;
-	readonly issueUrl: string;
-	readonly prUrl: string | null;
-	readonly sessionUrl: string | null;
-	readonly senderWindowId: number;
-}
 
 export interface WorkspaceOpenSettings {
 	readonly getArrangeEnabled: () => Promise<boolean>;
