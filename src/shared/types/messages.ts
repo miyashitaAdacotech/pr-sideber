@@ -4,6 +4,7 @@ import type { ProcessedPrsResult } from "../../domain/ports/pr-processor.port";
 import type { DeviceCodeResponse, PollResult } from "../../domain/types/auth";
 import type { DebugLogEntry } from "../utils/debug-logger";
 import type { ClaudeSessionStorage } from "./claude-session";
+import type { WorkspaceOpenRequest } from "./workspace";
 
 export interface DebugState {
 	readonly claudeSessions: ClaudeSessionStorage;
@@ -41,13 +42,7 @@ export type RequestMap = {
 	NAVIGATE_TO_PR: { url: string };
 	GET_CLAUDE_SESSIONS: undefined;
 	GET_DEBUG_STATE: undefined;
-	OPEN_WORKSPACE: {
-		issueNumber: number;
-		issueUrl: string;
-		prUrl: string | null;
-		sessionUrl: string | null;
-		senderWindowId: number;
-	};
+	OPEN_WORKSPACE: WorkspaceOpenRequest;
 };
 
 /** メッセージタイプ → レスポンスデータのマッピング */
