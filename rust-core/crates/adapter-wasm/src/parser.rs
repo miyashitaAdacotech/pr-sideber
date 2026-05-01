@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use domain::entity::PullRequest;
 use serde::Deserialize;
 
@@ -48,6 +50,22 @@ pub struct PrNode {
     pub updated_at: String,
     pub mergeable: Option<String>,
     pub review_threads: Option<ReviewThreadConnection>,
+    /// PR が `Closes #N` 等で明示的にクローズ対象にしている Issue のリスト。
+    /// GitHub GraphQL API の `closingIssuesReferences` に対応。
+    pub closing_issues_references: Option<IssueRefConnection>,
+    /// PR にリンクされている Issue のリスト (closing でないものも含む)。
+    /// GitHub GraphQL API の `linkedIssues` に対応。
+    pub linked_issues: Option<IssueRefConnection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueRefConnection {
+    pub nodes: Vec<IssueRef>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueRef {
+    pub number: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,14 +115,18 @@ pub struct RepositoryRef {
 }
 
 /// パーサーの返り値。GraphQL クエリの myPrs / reviewRequested を分けた状態で保持する。
+/// `pr_issue_links` は PR 番号 → リンクされた Issue 番号一覧の対応表。
+/// `closingIssuesReferences` と `linkedIssues` 両フィールドの和集合 (重複排除) を持ち、
+/// myPrs / reviewRequested 双方の PR を走査して構築する。
 #[derive(Debug)]
 pub struct ParsedPullRequests {
     pub my_prs: Vec<PullRequest>,
     pub review_requests: Vec<PullRequest>,
+    pub pr_issue_links: HashMap<u32, Vec<u32>>,
 }
 
 /// GraphQL レスポンスの JSON 文字列をパースし、myPrs と reviewRequested を分けて返す。
-/// null ノードはスキップする。
+/// 同時に PR-Issue リンクマップも構築する。null ノードはスキップする。
 pub fn parse_pull_request_nodes(json: &str) -> Result<ParsedPullRequests, WasmError> {
     let response: GraphQLResponse = serde_json::from_str(json)?;
 
@@ -119,15 +141,19 @@ pub fn parse_pull_request_nodes(json: &str) -> Result<ParsedPullRequests, WasmEr
         .map_or_else(Vec::new, |conn| conn.edges);
 
     let mut my_prs = Vec::with_capacity(my_pr_edges.len());
+    let mut review_requests = Vec::with_capacity(review_edges.len());
+    let mut pr_issue_links: HashMap<u32, Vec<u32>> = HashMap::new();
+
     for edge in my_pr_edges {
         if let Some(node) = edge.node {
+            collect_pr_issue_links(&node, &mut pr_issue_links);
             my_prs.push(convert_node_to_pull_request(node)?);
         }
     }
 
-    let mut review_requests = Vec::with_capacity(review_edges.len());
     for edge in review_edges {
         if let Some(node) = edge.node {
+            collect_pr_issue_links(&node, &mut pr_issue_links);
             review_requests.push(convert_node_to_pull_request(node)?);
         }
     }
@@ -135,7 +161,34 @@ pub fn parse_pull_request_nodes(json: &str) -> Result<ParsedPullRequests, WasmEr
     Ok(ParsedPullRequests {
         my_prs,
         review_requests,
+        pr_issue_links,
     })
+}
+
+/// 単一 PR ノードから `closingIssuesReferences` と `linkedIssues` を読み、
+/// `pr_issue_links` (PR 番号 → Issue 番号一覧) に書き込む。
+/// 同一 PR が myPrs / reviewRequested 双方に存在する場合、リンク先は和集合 (重複排除) でマージする。
+fn collect_pr_issue_links(node: &PrNode, links: &mut HashMap<u32, Vec<u32>>) {
+    let mut numbers: Vec<u32> = Vec::new();
+    if let Some(refs) = node.closing_issues_references.as_ref() {
+        for r in &refs.nodes {
+            numbers.push(r.number);
+        }
+    }
+    if let Some(refs) = node.linked_issues.as_ref() {
+        for r in &refs.nodes {
+            numbers.push(r.number);
+        }
+    }
+    if numbers.is_empty() {
+        return;
+    }
+    let entry = links.entry(node.number).or_default();
+    for n in numbers {
+        if !entry.contains(&n) {
+            entry.push(n);
+        }
+    }
 }
 
 /// 単一の PrNode を domain の PullRequest に変換する。

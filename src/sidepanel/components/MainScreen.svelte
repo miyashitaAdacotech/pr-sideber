@@ -9,7 +9,6 @@
 		isClaudeSessionsUpdatedEvent,
 		isTabUrlChangedEvent,
 	} from "../../shared/types/events";
-	import { extractPrIssueLinks, movePrsToLinkedIssues } from "../usecase/merge-prs-to-issues";
 	import { mergeSessionsIntoTree } from "../usecase/merge-sessions";
 	import type { WorkspaceResources } from "../../shared/utils/workspace-resources";
 	import { filterTreeByPin } from "../usecase/filter-tree-by-pin";
@@ -205,13 +204,12 @@
 		}
 
 		try {
-			const { tree, prsRawJson } = await fetchEpicTree();
-			const prLinks = extractPrIssueLinks(prsRawJson);
+			// PR-Issue リンクは Rust/WASM (processEpicTree) 内で merge 済み。tree をそのまま採用する。
+			const { tree } = await fetchEpicTree();
 			// treeWithPrs は session 未マージ状態。再マージ時の source として保持する。
-			const nextTreeWithPrs = movePrsToLinkedIssues(tree, prLinks);
 			const { sessions, mapping } = await fetchSessionsAndMapping();
-			treeWithPrs = nextTreeWithPrs;
-			epicData = mergeSessionsIntoTree(nextTreeWithPrs, sessions, mapping);
+			treeWithPrs = tree;
+			epicData = mergeSessionsIntoTree(tree, sessions, mapping);
 			epicError = null;
 		} catch (e: unknown) {
 			epicError = e instanceof Error ? e.message : "Failed to fetch epic tree";
@@ -267,16 +265,15 @@
 				}
 			}
 
-			// Epic ツリーを取得し、PR-Issue リンク + Claude セッション情報をマージ
+			// Epic ツリーを取得し、Claude セッション情報をマージ
+			// PR-Issue リンクは Rust/WASM (processEpicTree) 内で merge 済み。
 			try {
-				const { tree, prsRawJson } = await fetchEpicTree();
-				const prLinks = extractPrIssueLinks(prsRawJson);
+				const { tree } = await fetchEpicTree();
 				// session 未マージ状態のツリーを保持し、再マージ時の source とする。
-				const nextTreeWithPrs = movePrsToLinkedIssues(tree, prLinks);
 				const { sessions, mapping } = await fetchSessionsAndMapping();
 				if (!cancelled) {
-					treeWithPrs = nextTreeWithPrs;
-					epicData = mergeSessionsIntoTree(nextTreeWithPrs, sessions, mapping);
+					treeWithPrs = tree;
+					epicData = mergeSessionsIntoTree(tree, sessions, mapping);
 				}
 			} catch (e: unknown) {
 				if (!cancelled) {
