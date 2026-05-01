@@ -65,35 +65,56 @@ describe("extractIssueNumberFromTitle", () => {
 		expect(extractIssueNumberFromTitle("Inv #1000 Epic 2576")).toBe(1000);
 	});
 
-	// Issue #42: キーワードなし末尾数字フォールバック
-	it("extracts from 'Context Rot対策 2598' (trailing digit, no keyword)", () => {
-		expect(extractIssueNumberFromTitle("Context Rot対策 2598")).toBe(2598);
+	// Issue #3268 (PR feature/fix-bug-3268): 末尾数字フォールバックを廃止し、明示 prefix
+	// (#NNN / issue NNN / epic NNN) のみで自動抽出する方針に転換した。
+	// 業界標準 (GitHub Autolink, Jira Smart Commits, Linear Magic Links) は prefix 必須型を採用しており、
+	// 自由形式タイトルから自然言語的に数字を抽出する設計は誤検出が多くデグレを繰り返したため。
+	// 詳細: docs/adr/002-session-issue-mapping-prefix-only.md
+	it("returns null for 'Context Rot対策 2598' (trailing digit without prefix is no longer extracted)", () => {
+		expect(extractIssueNumberFromTitle("Context Rot対策 2598")).toBeNull();
 	});
 
-	it("extracts from 'Context Rot対策 2598 | Claude Code' (with suffix)", () => {
-		expect(extractIssueNumberFromTitle("Context Rot対策 2598 | Claude Code")).toBe(2598);
+	it("returns null for 'Context Rot対策 2598 | Claude Code' (trailing digit without prefix)", () => {
+		expect(extractIssueNumberFromTitle("Context Rot対策 2598 | Claude Code")).toBeNull();
 	});
 
-	it("returns null for '2026 roadmap' (digit is not trailing)", () => {
+	it("returns null for '2026 roadmap'", () => {
 		expect(extractIssueNumberFromTitle("2026 roadmap")).toBeNull();
 	});
 
-	it("returns null for 'Plan for 2026 migration' (trailing is word)", () => {
+	it("returns null for 'Plan for 2026 migration'", () => {
 		expect(extractIssueNumberFromTitle("Plan for 2026 migration")).toBeNull();
 	});
 
-	// 語境界: "V2598" のように文字列内の数字は末尾フォールバックで拾わない
-	it("returns null for 'V2598' (no word boundary before digits)", () => {
+	it("returns null for 'V2598' (no prefix)", () => {
 		expect(extractIssueNumberFromTitle("V2598")).toBeNull();
 	});
 
-	// 2桁以下はフォールバック対象外 (既存 issue/epic パターンで拾われる範囲と衝突回避)
-	it("returns null for 'some title 42' (2 digits below threshold)", () => {
+	it("returns null for 'some title 42' (no prefix)", () => {
 		expect(extractIssueNumberFromTitle("some title 42")).toBeNull();
 	});
 
-	// 優先順確認: 末尾数字より # が優先
-	it("prioritizes '#N' over trailing digit fallback", () => {
+	// Issue #3268 デグレード再発防止 fixture: 日本語境界 + 丸付き数字 suffix のセッションタイトル。
+	// `#` prefix なしのタイトルは null となり、UI 側で「未紐付け」セクションに出して手動紐付けに誘導する想定。
+	it("returns null for '[sdk] libclang のBlackSmith検証3268①' (Japanese boundary + circled digit suffix without #)", () => {
+		expect(extractIssueNumberFromTitle("[sdk] libclang のBlackSmith検証3268①")).toBeNull();
+	});
+
+	// 同タイトルでも `#` を含めれば自動抽出される (運用で `#NNN` を含める方針)
+	it("extracts from '[sdk] libclang のBlackSmith検証#3268⓪' (with #, even with circled digit suffix)", () => {
+		expect(extractIssueNumberFromTitle("[sdk] libclang のBlackSmith検証#3268⓪")).toBe(3268);
+	});
+
+	it("extracts from '[codegen]P5 総合#2576⑤' (with #)", () => {
+		expect(extractIssueNumberFromTitle("[codegen]P5 総合#2576⑤")).toBe(2576);
+	});
+
+	it("extracts from '[ZodError] issue #3065①' (with #, prefers # over 'issue' keyword)", () => {
+		expect(extractIssueNumberFromTitle("[ZodError] issue #3065①")).toBe(3065);
+	});
+
+	// 優先順確認: 末尾数字より # が優先 (旧 fallback が発火していた場合のリグレッション fixture)
+	it("prioritizes '#N' when trailing digit also exists", () => {
 		expect(extractIssueNumberFromTitle("something #100 context 2598")).toBe(100);
 	});
 });
